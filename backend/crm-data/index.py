@@ -165,6 +165,11 @@ def handle_work_items(method, params, body):
             conn.commit()
             return json_resp({"ok": True, "id": cur.fetchone()["id"]})
 
+        if method == "POST" and params.get("delete") == "true" and item_id:
+            cur.execute("UPDATE work_items SET sort_order = -1 WHERE id = %s", (item_id,))
+            conn.commit()
+            return json_resp({"ok": True})
+
         if method in ("POST", "PUT") and item_id:
             fields = ["name", "quantity", "unit", "price", "sort_order"]
             sets, vals = [], []
@@ -176,11 +181,6 @@ def handle_work_items(method, params, body):
                 vals.append(item_id)
                 cur.execute(f"UPDATE work_items SET {', '.join(sets)} WHERE id = %s", vals)
                 conn.commit()
-            return json_resp({"ok": True})
-
-        if method == "POST" and params.get("delete") == "true" and item_id:
-            cur.execute("UPDATE work_items SET sort_order = -1 WHERE id = %s", (item_id,))
-            conn.commit()
             return json_resp({"ok": True})
     finally:
         conn.close()

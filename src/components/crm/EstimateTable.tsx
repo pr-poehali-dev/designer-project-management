@@ -79,7 +79,7 @@ export default function EstimateTable({ projectId, discountPercent }: {
           body: JSON.stringify({ name: item.name, quantity: item.quantity, unit: item.unit, price: item.price }),
         })
       ));
-      setSavedItems(JSON.stringify(realItems.map(i => ({ id: i.id, name: i.name, quantity: i.quantity, unit: i.unit, price: i.price }))));
+      await load();
       setSaveStatus("saved");
       setTimeout(() => setSaveStatus("idle"), 3000);
     } catch { setSaveStatus("error"); } finally { setSaving(false); }

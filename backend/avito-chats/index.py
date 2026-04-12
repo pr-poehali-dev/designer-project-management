@@ -1,37 +1,58 @@
 """
-Интеграция с Авито Messenger API.
-Получение токена, списка чатов, сообщений и отправка ответов.
+Интеграция с Авито Messenger API + автоответ через ChatGPT (Polza.ai).
+Получение токена, списка чатов, сообщений, отправка ответов и автопилот.
 """
 import json
 import os
 import urllib.request
 import urllib.parse
-import urllib.error
 
 
 AVITO_AUTH_URL = "https://api.avito.ru/token"
 AVITO_API_BASE = "https://api.avito.ru"
+POLZA_API_URL  = "https://api.polza.ai/v1/chat/completions"
+
+SYSTEM_PROMPT = """Ты — вежливый менеджер компании DaVinci, тебя зовут Юлия.
+Компания занимается дизайном интерьеров.
+
+Прайс:
+- Стандартный проект: 1500 руб.
+- Полный проект: 2500 руб.
+
+Твоя главная цель — получить номер телефона клиента, чтобы перезвонить и обсудить детали.
+
+Правила:
+1. Отвечай дружелюбно и коротко (2-4 предложения максимум).
+2. Расскажи об услуге если спрашивают, упомяни цены.
+3. В конце КАЖДОГО ответа мягко проси номер телефона: "Оставьте, пожалуйста, ваш номер — я перезвоню и всё расскажу подробнее!"
+4. Если клиент уже оставил номер — поблагодари и скажи что перезвонишь в ближайшее время.
+5. Не обещай конкретное время звонка.
+6. Пиши только на русском языке.
+7. Никогда не представляйся как ИИ или бот."""
 
 
-def get_access_token() -> str:
-    client_id = os.environ["AVITO_CLIENT_ID"]
-    client_secret = os.environ["AVITO_CLIENT_SECRET"]
+CORS_HEADERS = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, X-User-Id, X-Auth-Token",
+}
 
+
+# ── Avito helpers ──────────────────────────────────────────────────────────────
+
+def get_avito_token() -> str:
     data = urllib.parse.urlencode({
         "grant_type": "client_credentials",
-        "client_id": client_id,
-        "client_secret": client_secret,
+        "client_id": os.environ["AVITO_CLIENT_ID"],
+        "client_secret": os.environ["AVITO_CLIENT_SECRET"],
     }).encode()
-
     req = urllib.request.Request(
-        AVITO_AUTH_URL,
-        data=data,
+        AVITO_AUTH_URL, data=data,
         headers={"Content-Type": "application/x-www-form-urlencoded"},
         method="POST"
     )
     with urllib.request.urlopen(req, timeout=10) as resp:
-        result = json.loads(resp.read())
-    return result["access_token"]
+        return json.loads(resp.read())["access_token"]
 
 
 def avito_get(path: str, token: str) -> dict:
@@ -47,24 +68,50 @@ def avito_get(path: str, token: str) -> dict:
 def avito_post(path: str, token: str, body: dict) -> dict:
     data = json.dumps(body).encode()
     req = urllib.request.Request(
-        f"{AVITO_API_BASE}{path}",
-        data=data,
-        headers={
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json",
-        },
+        f"{AVITO_API_BASE}{path}", data=data,
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
         method="POST"
     )
     with urllib.request.urlopen(req, timeout=10) as resp:
         return json.loads(resp.read())
 
 
-CORS_HEADERS = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, X-User-Id, X-Auth-Token",
-}
+def send_avito_message(user_id: int, chat_id: str, text: str, token: str) -> dict:
+    return avito_post(
+        f"/messenger/v2/accounts/{user_id}/chats/{chat_id}/messages",
+        token,
+        {"message": {"text": text}, "type": "text"}
+    )
 
+
+# ── ChatGPT helper ─────────────────────────────────────────────────────────────
+
+def chatgpt_reply(history: list[dict]) -> str:
+    """Отправляет историю сообщений в ChatGPT и возвращает ответ."""
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}] + history
+
+    payload = json.dumps({
+        "model": "openai/gpt-4o-mini",
+        "messages": messages,
+        "max_tokens": 300,
+        "temperature": 0.7,
+    }).encode()
+
+    req = urllib.request.Request(
+        POLZA_API_URL, data=payload,
+        headers={
+            "Authorization": f"Bearer {os.environ['POLZA_AI_API_KEY']}",
+            "Content-Type": "application/json",
+        },
+        method="POST"
+    )
+    with urllib.request.urlopen(req, timeout=20) as resp:
+        result = json.loads(resp.read())
+
+    return result["choices"][0]["message"]["content"].strip()
+
+
+# ── Main handler ───────────────────────────────────────────────────────────────
 
 def handler(event: dict, context) -> dict:
     if event.get("httpMethod") == "OPTIONS":
@@ -74,49 +121,121 @@ def handler(event: dict, context) -> dict:
     params = event.get("queryStringParameters") or {}
     action = params.get("action", "chats")
 
-    token = get_access_token()
-
-    # Получить user_id аккаунта
-    me = avito_get("/core/v1/accounts/self", token)
+    avito_token = get_avito_token()
+    me = avito_get("/core/v1/accounts/self", avito_token)
     user_id = me["id"]
 
+    # ── GET chats ──────────────────────────────────────────────────────────────
     if action == "chats":
-        # Список чатов — v2 официальный эндпоинт
         unread_only = params.get("unread_only", "false") == "true"
         url = f"/messenger/v2/accounts/{user_id}/chats?unread_only={'true' if unread_only else 'false'}&limit=50"
-        data = avito_get(url, token)
+        data = avito_get(url, avito_token)
         return {
-            "statusCode": 200,
-            "headers": CORS_HEADERS,
+            "statusCode": 200, "headers": CORS_HEADERS,
             "body": json.dumps({"ok": True, "chats": data.get("chats", []), "user_id": user_id})
         }
 
+    # ── GET messages ───────────────────────────────────────────────────────────
     elif action == "messages":
         chat_id = params.get("chat_id")
         if not chat_id:
-            return {"statusCode": 400, "headers": CORS_HEADERS, "body": json.dumps({"ok": False, "error": "chat_id required"})}
-        data = avito_get(f"/messenger/v2/accounts/{user_id}/chats/{chat_id}/messages/?limit=50", token)
+            return {"statusCode": 400, "headers": CORS_HEADERS,
+                    "body": json.dumps({"ok": False, "error": "chat_id required"})}
+        data = avito_get(f"/messenger/v2/accounts/{user_id}/chats/{chat_id}/messages/?limit=50", avito_token)
         return {
-            "statusCode": 200,
-            "headers": CORS_HEADERS,
+            "statusCode": 200, "headers": CORS_HEADERS,
             "body": json.dumps({"ok": True, "messages": data.get("messages", []), "user_id": user_id})
         }
 
+    # ── POST send ──────────────────────────────────────────────────────────────
     elif action == "send" and method == "POST":
         body = json.loads(event.get("body") or "{}")
         chat_id = body.get("chat_id")
         message = body.get("message", "")
         if not chat_id or not message:
-            return {"statusCode": 400, "headers": CORS_HEADERS, "body": json.dumps({"ok": False, "error": "chat_id and message required"})}
-        result = avito_post(
-            f"/messenger/v2/accounts/{user_id}/chats/{chat_id}/messages",
-            token,
-            {"message": {"text": message}, "type": "text"}
-        )
+            return {"statusCode": 400, "headers": CORS_HEADERS,
+                    "body": json.dumps({"ok": False, "error": "chat_id and message required"})}
+        result = send_avito_message(user_id, chat_id, message, avito_token)
         return {
-            "statusCode": 200,
-            "headers": CORS_HEADERS,
+            "statusCode": 200, "headers": CORS_HEADERS,
             "body": json.dumps({"ok": True, "result": result})
         }
 
-    return {"statusCode": 400, "headers": CORS_HEADERS, "body": json.dumps({"ok": False, "error": "unknown action"})}
+    # ── POST autopilot ─────────────────────────────────────────────────────────
+    # Вызывается фронтендом каждые N секунд.
+    # Находит чаты с непрочитанными сообщениями, генерирует и отправляет ответ.
+    elif action == "autopilot" and method == "POST":
+        body = json.loads(event.get("body") or "{}")
+        # Можно передать конкретный chat_id, иначе обработаем все непрочитанные
+        target_chat_id = body.get("chat_id")
+
+        # Берём только непрочитанные чаты
+        chats_data = avito_get(
+            f"/messenger/v2/accounts/{user_id}/chats?unread_only=true&limit=20",
+            avito_token
+        )
+        chats = chats_data.get("chats", [])
+
+        if target_chat_id:
+            chats = [c for c in chats if c["id"] == target_chat_id]
+
+        processed = []
+        errors = []
+
+        for chat in chats:
+            chat_id = chat["id"]
+            try:
+                # Получаем последние 10 сообщений для контекста
+                msgs_data = avito_get(
+                    f"/messenger/v2/accounts/{user_id}/chats/{chat_id}/messages/?limit=10",
+                    avito_token
+                )
+                msgs = msgs_data.get("messages", [])
+
+                if not msgs:
+                    continue
+
+                # Последнее сообщение должно быть от клиента (не от нас)
+                last_msg = msgs[-1]
+                if last_msg.get("author_id") == user_id:
+                    continue  # Мы уже ответили
+
+                # Формируем историю для ChatGPT
+                history = []
+                for m in msgs:
+                    text = m.get("content", {}).get("text", {}).get("text", "")
+                    if not text:
+                        continue
+                    role = "assistant" if m.get("author_id") == user_id else "user"
+                    history.append({"role": role, "content": text})
+
+                if not history:
+                    continue
+
+                # Генерируем ответ
+                reply_text = chatgpt_reply(history)
+
+                # Отправляем в Авито
+                send_avito_message(user_id, chat_id, reply_text, avito_token)
+
+                processed.append({
+                    "chat_id": chat_id,
+                    "reply": reply_text,
+                    "client": chat.get("users", [{}])[0].get("name", ""),
+                })
+
+            except Exception as e:
+                errors.append({"chat_id": chat_id, "error": str(e)})
+
+        return {
+            "statusCode": 200, "headers": CORS_HEADERS,
+            "body": json.dumps({
+                "ok": True,
+                "processed": len(processed),
+                "replies": processed,
+                "errors": errors,
+            })
+        }
+
+    return {"statusCode": 400, "headers": CORS_HEADERS,
+            "body": json.dumps({"ok": False, "error": "unknown action"})}

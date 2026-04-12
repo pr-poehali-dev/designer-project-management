@@ -3,6 +3,7 @@ import Icon from "@/components/ui/icon";
 
 const AVITO_API = "https://functions.poehali.dev/976899aa-03a4-4f5c-9700-e57aa8f2113a";
 const POLL_INTERVAL = 30_000;
+const AUTOPILOT_INTERVAL = 40_000;
 
 interface AvitoUser {
   id: number;
@@ -65,11 +66,17 @@ export default function ChatsPage() {
   const [sending, setSending] = useState(false);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
 
+  // Autopilot
+  const [autopilot, setAutopilot] = useState(false);
+  const [autopilotLog, setAutopilotLog] = useState<{ time: string; client: string; reply: string }[]>([]);
+  const [autopilotRunning, setAutopilotRunning] = useState(false);
+
   // Internal state
   const [activeInternal, setActiveInternal] = useState(INTERNAL_CHATS[0]);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const autopilotRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ─── Load chats ───────────────────────────────────────────────
   const loadChats = useCallback(async (silent = false) => {
@@ -104,6 +111,40 @@ export default function ChatsPage() {
     pollRef.current = setInterval(() => loadChats(true), POLL_INTERVAL);
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [tab, loadChats]);
+
+  // ─── Autopilot ────────────────────────────────────────────────
+  const runAutopilot = useCallback(async () => {
+    if (autopilotRunning) return;
+    setAutopilotRunning(true);
+    try {
+      const res = await fetch(`${AVITO_API}?action=autopilot`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (data.ok && data.replies?.length > 0) {
+        const time = new Date().toLocaleTimeString("ru", { hour: "2-digit", minute: "2-digit" });
+        setAutopilotLog(prev => [
+          ...data.replies.map((r: { client: string; reply: string }) => ({ time, client: r.client, reply: r.reply })),
+          ...prev,
+        ].slice(0, 20));
+        loadChats(true);
+      }
+    } catch { /* ignore */ } finally {
+      setAutopilotRunning(false);
+    }
+  }, [autopilotRunning, loadChats]);
+
+  useEffect(() => {
+    if (autopilot) {
+      runAutopilot();
+      autopilotRef.current = setInterval(runAutopilot, AUTOPILOT_INTERVAL);
+    } else {
+      if (autopilotRef.current) clearInterval(autopilotRef.current);
+    }
+    return () => { if (autopilotRef.current) clearInterval(autopilotRef.current); };
+  }, [autopilot]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Load messages ────────────────────────────────────────────
   const loadMessages = useCallback(async (chatId: string, silent = false) => {
@@ -211,6 +252,27 @@ export default function ChatsPage() {
               Команда
             </button>
           </div>
+
+          {/* Autopilot toggle — показывается только на вкладке Авито */}
+          {tab === "avito" && (
+            <div className={`flex items-center justify-between px-4 py-2.5 border-b border-snow-dark transition-colors ${autopilot ? "bg-ink" : "bg-white"}`}>
+              <div className="flex items-center gap-2">
+                <div className={`w-1.5 h-1.5 rounded-full ${autopilot ? "bg-green-400 animate-pulse" : "bg-ink-faint"}`} />
+                <span className={`text-xs font-semibold ${autopilot ? "text-white" : "text-ink-muted"}`}>
+                  {autopilot ? "Автопилот включён" : "Автопилот выключен"}
+                </span>
+                {autopilotRunning && (
+                  <div className="w-3 h-3 border border-white/40 border-t-white rounded-full animate-spin" />
+                )}
+              </div>
+              <button
+                onClick={() => setAutopilot(p => !p)}
+                className={`relative w-10 h-5 rounded-full transition-colors ${autopilot ? "bg-green-400" : "bg-snow-dark"}`}
+              >
+                <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${autopilot ? "left-5" : "left-0.5"}`} />
+              </button>
+            </div>
+          )}
 
           {/* Search + refresh */}
           <div className="p-3 border-b border-snow-dark flex gap-2">
@@ -325,6 +387,22 @@ export default function ChatsPage() {
 
         {/* ── Messages panel ───────────────────────────────────── */}
         <div className="flex-1 flex flex-col min-w-0">
+
+          {/* Autopilot log panel */}
+          {tab === "avito" && autopilotLog.length > 0 && (
+            <div className="border-b border-snow-dark bg-green-50 px-5 py-3 shrink-0 max-h-32 overflow-y-auto">
+              <p className="text-[10px] font-semibold text-green-700 mb-2 flex items-center gap-1">
+                <Icon name="Bot" size={11} /> Автопилот — последние ответы
+              </p>
+              {autopilotLog.slice(0, 5).map((log, i) => (
+                <div key={i} className="text-[10px] text-green-800 mb-1">
+                  <span className="text-green-500">{log.time}</span>
+                  {" · "}<span className="font-medium">{log.client || "клиент"}</span>
+                  {" — "}<span className="text-ink-muted">{log.reply.slice(0, 80)}…</span>
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* Avito chat open */}
           {tab === "avito" && activeChat && (

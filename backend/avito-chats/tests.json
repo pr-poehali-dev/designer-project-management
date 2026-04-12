@@ -8,5 +8,14 @@
       "expectedBody": {"ok": true},
       "bodyMatcher": "partial"
     }
+  ,{
+      "name": "Autopilot endpoint",
+      "method": "POST",
+      "path": "/?action=autopilot",
+      "body": {},
+      "expectedStatus": 200,
+      "expectedBody": {"ok": true},
+      "bodyMatcher": "partial"
+    }
   ]
 }

@@ -144,20 +144,16 @@ export default function ProjectCard({ projectId, onBack }: { projectId: number; 
             className="text-lg font-semibold bg-transparent focus:outline-none focus:bg-snow rounded-lg px-2 py-1 -ml-2 w-full" />
           <p className="text-xs text-ink-faint ml-0.5">{project.client_name || "Клиент не выбран"}</p>
         </div>
-        <button onClick={() => { generatePdf(); setShowSendModal(true); }}
-          disabled={generatingPdf}
-          className="h-9 px-4 bg-ink text-white text-sm font-medium rounded-full hover:bg-ink-light transition-colors flex items-center gap-2 disabled:opacity-60">
-          {generatingPdf
-            ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            : <Icon name="FileDown" size={15} />}
-          {generatingPdf ? "Генерирую..." : "Скачать КП"}
+        <button onClick={() => { setShowKpModal(true); setPdfUrl(""); setSendStatus("idle"); }}
+          className="h-9 px-4 bg-ink text-white text-sm font-medium rounded-full hover:bg-ink-light transition-colors flex items-center gap-2">
+          <Icon name="FileDown" size={15} /> Скачать КП
         </button>
       </div>
 
-      {showSendModal && (
+      {showKpModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-ink/20 backdrop-blur-sm" onClick={() => { setShowSendModal(false); setSendStatus("idle"); }} />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6 animate-fade-in">
+          <div className="absolute inset-0 bg-ink/20 backdrop-blur-sm" onClick={() => setShowKpModal(false)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 p-6 animate-fade-in max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-5">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-snow flex items-center justify-center">
@@ -165,50 +161,89 @@ export default function ProjectCard({ projectId, onBack }: { projectId: number; 
                 </div>
                 <div>
                   <h3 className="font-semibold text-sm">Коммерческое предложение</h3>
-                  <p className="text-xs text-ink-faint">Скачайте или отправьте клиенту</p>
+                  <p className="text-xs text-ink-faint">Выберите стиль и сгенерируйте PDF</p>
                 </div>
               </div>
-              <button onClick={() => { setShowSendModal(false); setSendStatus("idle"); }} className="text-ink-faint hover:text-ink">
+              <button onClick={() => setShowKpModal(false)} className="text-ink-faint hover:text-ink">
                 <Icon name="X" size={18} />
               </button>
             </div>
 
-            {generatingPdf ? (
-              <div className="flex flex-col items-center py-8 gap-3">
-                <div className="w-8 h-8 border-2 border-ink/20 border-t-ink rounded-full animate-spin" />
-                <p className="text-sm text-ink-faint">Генерирую PDF...</p>
+            {!pdfUrl && !generatingPdf && (
+              <div className="space-y-5">
+                <div>
+                  <p className="text-xs font-semibold text-ink-muted mb-3">Стиль оформления</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { id: "minimal", label: "Минимал", desc: "Строгий ч/б", icon: "Minus", color: "bg-gray-900" },
+                      { id: "corporate", label: "Корпоративный", desc: "С цветным хедером", icon: "Building2", color: "bg-blue-900" },
+                      { id: "presentation", label: "Презентация", desc: "Яркий акцент", icon: "Sparkles", color: "bg-violet-600" },
+                    ].map(s => (
+                      <button key={s.id} onClick={() => setKpStyle(s.id)}
+                        className={`p-3 rounded-xl border-2 text-left transition-all ${kpStyle === s.id ? "border-ink bg-ink/[0.03]" : "border-snow-dark hover:border-ink-faint"}`}>
+                        <div className={`w-7 h-7 rounded-lg ${s.color} flex items-center justify-center mb-2`}>
+                          <Icon name={s.icon} size={14} className="text-white" />
+                        </div>
+                        <p className="text-xs font-semibold">{s.label}</p>
+                        <p className="text-[10px] text-ink-faint mt-0.5">{s.desc}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-xs font-semibold text-ink-muted mb-2">Вступительный текст <span className="font-normal text-ink-faint">(необязательно)</span></p>
+                  <textarea value={kpIntro} onChange={e => setKpIntro(e.target.value)}
+                    placeholder="Добрый день! Рады представить вам наше предложение по проекту..."
+                    rows={3}
+                    className="w-full bg-snow border border-snow-dark rounded-xl px-3 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ink/10 placeholder:text-ink-faint/50" />
+                </div>
+
+                <button onClick={() => generatePdf()} disabled={generatingPdf}
+                  className="w-full py-3 bg-ink text-white text-sm font-medium rounded-xl hover:bg-ink-light transition-colors flex items-center justify-center gap-2">
+                  <Icon name="Zap" size={16} /> Сгенерировать PDF
+                </button>
               </div>
-            ) : pdfUrl ? (
+            )}
+
+            {generatingPdf && (
+              <div className="flex flex-col items-center py-10 gap-3">
+                <div className="w-8 h-8 border-2 border-ink/20 border-t-ink rounded-full animate-spin" />
+                <p className="text-sm text-ink-faint">Генерирую КП...</p>
+              </div>
+            )}
+
+            {pdfUrl && !generatingPdf && (
               <div className="space-y-4">
                 <div className="bg-green-50 border border-green-200 rounded-xl p-3 flex items-center gap-2">
                   <Icon name="CheckCircle2" size={16} className="text-green-600 shrink-0" />
                   <p className="text-xs text-green-700 font-medium">PDF готов!</p>
                 </div>
 
-                <a href={pdfUrl} target="_blank" rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-2 w-full py-3 bg-ink text-white text-sm font-medium rounded-xl hover:bg-ink-light transition-colors">
-                  <Icon name="Download" size={16} /> Скачать PDF
-                </a>
+                <div className="flex gap-2">
+                  <a href={pdfUrl} target="_blank" rel="noopener noreferrer"
+                    className="flex-1 flex items-center justify-center gap-2 py-3 bg-ink text-white text-sm font-medium rounded-xl hover:bg-ink-light transition-colors">
+                    <Icon name="Download" size={16} /> Скачать
+                  </a>
+                  <button onClick={() => setPdfUrl("")}
+                    className="px-4 py-3 border border-snow-dark text-sm font-medium rounded-xl hover:bg-snow transition-colors text-ink-muted">
+                    Другой стиль
+                  </button>
+                </div>
 
                 <div className="border border-snow-dark rounded-xl p-4 space-y-3">
                   <p className="text-xs font-semibold text-ink-muted">Отправить в чат Авито</p>
                   <input value={sendChatId} onChange={e => setSendChatId(e.target.value)}
-                    placeholder="ID чата из раздела Чаты..."
+                    placeholder="ID чата..."
                     className="w-full bg-snow border border-snow-dark rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ink/10" />
                   <button onClick={sendToAvito} disabled={sending || !sendChatId.trim()}
                     className="w-full py-2.5 bg-snow border border-snow-dark text-sm font-medium rounded-xl hover:bg-snow-dark transition-colors disabled:opacity-40 flex items-center justify-center gap-2">
                     {sending ? <div className="w-4 h-4 border-2 border-ink/20 border-t-ink rounded-full animate-spin" /> : <Icon name="Send" size={14} />}
-                    {sending ? "Отправляю..." : "Отправить в чат"}
+                    {sending ? "Отправляю..." : "Отправить"}
                   </button>
                   {sendStatus === "ok" && <p className="text-xs text-green-600 flex items-center gap-1"><Icon name="Check" size={12} /> Отправлено!</p>}
-                  {sendStatus === "error" && <p className="text-xs text-red-500 flex items-center gap-1"><Icon name="AlertCircle" size={12} /> Ошибка отправки</p>}
+                  {sendStatus === "error" && <p className="text-xs text-red-500 flex items-center gap-1"><Icon name="AlertCircle" size={12} /> Ошибка</p>}
                 </div>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center py-6 gap-3">
-                <Icon name="AlertCircle" size={28} className="text-red-400" />
-                <p className="text-sm text-ink-faint">Не удалось сгенерировать PDF</p>
-                <button onClick={generatePdf} className="text-sm text-ink font-medium hover:underline">Попробовать снова</button>
               </div>
             )}
           </div>

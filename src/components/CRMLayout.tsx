@@ -38,6 +38,7 @@ export default function CRMLayout({ onLogout }: Props) {
   const [collapsed, setCollapsed] = useState(false);
   const [userName, setUserName] = useState("");
   const [userPosition, setUserPosition] = useState("");
+  const [openProjectId, setOpenProjectId] = useState<number | null>(null);
 
   const loadProfile = useCallback(async () => {
     try {
@@ -56,8 +57,8 @@ export default function CRMLayout({ onLogout }: Props) {
   const renderPage = () => {
     switch (active) {
       case "dashboard": return <DashboardPage />;
-      case "projects": return <ProjectsPage />;
-      case "clients": return <ClientsPage />;
+      case "projects": return <ProjectsPage openProjectId={openProjectId} onClearProject={() => setOpenProjectId(null)} />;
+      case "clients": return <ClientsPage onOpenProject={(id: number) => { setOpenProjectId(id); setActive("projects"); }} />;
       case "team": return <TeamPage />;
       case "finance": return <FinancePage />;
       case "contracts": return <ContractsPage />;
@@ -89,7 +90,7 @@ export default function CRMLayout({ onLogout }: Props) {
           {NAV_ITEMS.map(item => (
             <button
               key={item.id}
-              onClick={() => setActive(item.id)}
+              onClick={() => { setActive(item.id); setOpenProjectId(null); }}
               className={`sidebar-item w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-lg mb-0.5 ${
                 active === item.id ? "active" : "text-ink-muted hover:text-ink hover:bg-snow"
               }`}
@@ -150,7 +151,8 @@ export default function CRMLayout({ onLogout }: Props) {
               <Icon name="Bell" size={18} />
               <span className="absolute -top-1 -right-1 w-2 h-2 bg-ink rounded-full" />
             </button>
-            <button className="h-9 px-5 bg-ink text-white text-sm font-medium rounded-full hover:bg-ink-light transition-colors">
+            <button onClick={() => { setOpenProjectId(null); setActive("clients"); }}
+              className="h-9 px-5 bg-ink text-white text-sm font-medium rounded-full hover:bg-ink-light transition-colors">
               + Новый проект
             </button>
           </div>

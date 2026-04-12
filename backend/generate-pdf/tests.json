@@ -1,0 +1,1 @@
+{"tests": [{"name": "Generate PDF health check", "method": "GET", "path": "/?project_id=1", "expectedStatus": 200, "expectedBody": {"ok": true}, "bodyMatcher": "partial"}]}

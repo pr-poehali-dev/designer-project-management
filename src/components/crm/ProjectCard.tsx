@@ -3,6 +3,8 @@ import Icon from "@/components/ui/icon";
 import EstimateTable from "./EstimateTable";
 
 const API = "https://functions.poehali.dev/21fcd16a-d247-4b03-8505-0be9497f8386";
+const PDF_API = "https://functions.poehali.dev/79538cf9-12ec-42f3-9e60-aaf7a9edfba2";
+const AVITO_API = "https://functions.poehali.dev/976899aa-03a4-4f5c-9700-e57aa8f2113a";
 
 interface ProjectData {
   id: number; name: string; client_id: number | null; client_name: string;
@@ -30,6 +32,12 @@ export default function ProjectCard({ projectId, onBack }: { projectId: number; 
   const [savedProject, setSavedProject] = useState("");
   const [status, setStatus] = useState<"idle" | "saved" | "error">("idle");
   const [newMember, setNewMember] = useState({ member_name: "", role: "" });
+  const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [pdfUrl, setPdfUrl] = useState("");
+  const [showSendModal, setShowSendModal] = useState(false);
+  const [sendChatId, setSendChatId] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sendStatus, setSendStatus] = useState<"idle" | "ok" | "error">("idle");
 
   const load = useCallback(async () => {
     try {
@@ -78,6 +86,31 @@ export default function ProjectCard({ projectId, onBack }: { projectId: number; 
     } catch { /* ignore */ }
   };
 
+  const generatePdf = async () => {
+    setGeneratingPdf(true);
+    setPdfUrl("");
+    try {
+      const r = await fetch(`${PDF_API}?project_id=${projectId}`);
+      const data = await r.json();
+      if (data.ok) setPdfUrl(data.url);
+    } catch { /* ignore */ } finally { setGeneratingPdf(false); }
+  };
+
+  const sendToAvito = async () => {
+    if (!sendChatId.trim() || !pdfUrl) return;
+    setSending(true);
+    setSendStatus("idle");
+    try {
+      const msg = `Коммерческое предложение по проекту «${project?.name || ""}»:\n${pdfUrl}`;
+      const r = await fetch(`${AVITO_API}?action=send`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chat_id: sendChatId.trim(), message: msg }),
+      });
+      const data = await r.json();
+      setSendStatus(data.ok ? "ok" : "error");
+    } catch { setSendStatus("error"); } finally { setSending(false); }
+  };
+
   if (loading) {
     return <div className="flex justify-center py-20"><div className="w-5 h-5 border-2 border-ink/20 border-t-ink rounded-full animate-spin" /></div>;
   }
@@ -103,7 +136,76 @@ export default function ProjectCard({ projectId, onBack }: { projectId: number; 
             className="text-lg font-semibold bg-transparent focus:outline-none focus:bg-snow rounded-lg px-2 py-1 -ml-2 w-full" />
           <p className="text-xs text-ink-faint ml-0.5">{project.client_name || "Клиент не выбран"}</p>
         </div>
+        <button onClick={() => { generatePdf(); setShowSendModal(true); }}
+          disabled={generatingPdf}
+          className="h-9 px-4 bg-ink text-white text-sm font-medium rounded-full hover:bg-ink-light transition-colors flex items-center gap-2 disabled:opacity-60">
+          {generatingPdf
+            ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            : <Icon name="FileDown" size={15} />}
+          {generatingPdf ? "Генерирую..." : "Скачать КП"}
+        </button>
       </div>
+
+      {showSendModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-ink/20 backdrop-blur-sm" onClick={() => { setShowSendModal(false); setSendStatus("idle"); }} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6 animate-fade-in">
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-snow flex items-center justify-center">
+                  <Icon name="FileText" size={18} className="text-ink-muted" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-sm">Коммерческое предложение</h3>
+                  <p className="text-xs text-ink-faint">Скачайте или отправьте клиенту</p>
+                </div>
+              </div>
+              <button onClick={() => { setShowSendModal(false); setSendStatus("idle"); }} className="text-ink-faint hover:text-ink">
+                <Icon name="X" size={18} />
+              </button>
+            </div>
+
+            {generatingPdf ? (
+              <div className="flex flex-col items-center py-8 gap-3">
+                <div className="w-8 h-8 border-2 border-ink/20 border-t-ink rounded-full animate-spin" />
+                <p className="text-sm text-ink-faint">Генерирую PDF...</p>
+              </div>
+            ) : pdfUrl ? (
+              <div className="space-y-4">
+                <div className="bg-green-50 border border-green-200 rounded-xl p-3 flex items-center gap-2">
+                  <Icon name="CheckCircle2" size={16} className="text-green-600 shrink-0" />
+                  <p className="text-xs text-green-700 font-medium">PDF готов!</p>
+                </div>
+
+                <a href={pdfUrl} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2 w-full py-3 bg-ink text-white text-sm font-medium rounded-xl hover:bg-ink-light transition-colors">
+                  <Icon name="Download" size={16} /> Скачать PDF
+                </a>
+
+                <div className="border border-snow-dark rounded-xl p-4 space-y-3">
+                  <p className="text-xs font-semibold text-ink-muted">Отправить в чат Авито</p>
+                  <input value={sendChatId} onChange={e => setSendChatId(e.target.value)}
+                    placeholder="ID чата из раздела Чаты..."
+                    className="w-full bg-snow border border-snow-dark rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ink/10" />
+                  <button onClick={sendToAvito} disabled={sending || !sendChatId.trim()}
+                    className="w-full py-2.5 bg-snow border border-snow-dark text-sm font-medium rounded-xl hover:bg-snow-dark transition-colors disabled:opacity-40 flex items-center justify-center gap-2">
+                    {sending ? <div className="w-4 h-4 border-2 border-ink/20 border-t-ink rounded-full animate-spin" /> : <Icon name="Send" size={14} />}
+                    {sending ? "Отправляю..." : "Отправить в чат"}
+                  </button>
+                  {sendStatus === "ok" && <p className="text-xs text-green-600 flex items-center gap-1"><Icon name="Check" size={12} /> Отправлено!</p>}
+                  {sendStatus === "error" && <p className="text-xs text-red-500 flex items-center gap-1"><Icon name="AlertCircle" size={12} /> Ошибка отправки</p>}
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center py-6 gap-3">
+                <Icon name="AlertCircle" size={28} className="text-red-400" />
+                <p className="text-sm text-ink-faint">Не удалось сгенерировать PDF</p>
+                <button onClick={generatePdf} className="text-sm text-ink font-medium hover:underline">Попробовать снова</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="card-surface rounded-2xl p-5 mb-6">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

@@ -23,43 +23,73 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
 
-def _register_fonts():
-    """Загружает и регистрирует шрифт DejaVu с поддержкой кириллицы."""
-    font_urls = {
-        "DejaVu": "https://github.com/dejavu-fonts/dejavu-fonts/releases/download/version_2_37/dejavu-fonts-ttf-2.37.zip",
-    }
-    # Используем CDN jsDelivr для загрузки TTF напрямую
-    font_urls = {
-        "DejaVu": "https://cdn.jsdelivr.net/npm/@fontsource/source-sans-pro@5.0.0/files/source-sans-pro-cyrillic-400-normal.woff2",
-    }
-    # Лучший вариант — скачать с GitHub releases через raw.githubusercontent.com
-    font_urls = {
-        "DejaVu": "https://raw.githubusercontent.com/dejavu-fonts/dejavu-fonts/master/ttf/DejaVuSans.ttf",
-        "DejaVu-Bold": "https://raw.githubusercontent.com/dejavu-fonts/dejavu-fonts/master/ttf/DejaVuSans-Bold.ttf",
-    }
-    for name, url in font_urls.items():
-        try:
-            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                data = resp.read()
-            buf = io.BytesIO(data)
-            pdfmetrics.registerFont(TTFont(name, buf))
-        except Exception:
-            pass
-
-
+# Шрифты хранятся в S3, загружаются один раз в /tmp
+_FONT_S3_KEYS = {
+    "DejaVu":      "fonts/DejaVuSans.ttf",
+    "DejaVu-Bold": "fonts/DejaVuSans-Bold.ttf",
+}
+_FONT_CDN_URLS = {
+    "DejaVu":      "https://cdn.jsdelivr.net/npm/dejavu-fonts-ttf@2.37.3/ttf/DejaVuSans.ttf",
+    "DejaVu-Bold": "https://cdn.jsdelivr.net/npm/dejavu-fonts-ttf@2.37.3/ttf/DejaVuSans-Bold.ttf",
+}
 _fonts_registered = False
 
 
+def _load_font_bytes(name: str) -> bytes:
+    """Пробует загрузить шрифт: сначала из S3, потом из CDN, кешируя в /tmp."""
+    cache_path = f"/tmp/{name}.ttf"
+    if os.path.exists(cache_path) and os.path.getsize(cache_path) > 100_000:
+        with open(cache_path, "rb") as f:
+            return f.read()
+
+    # Сначала попробуем S3
+    try:
+        s3 = get_s3()
+        obj = s3.get_object(Bucket="files", Key=_FONT_S3_KEYS[name])
+        data = obj["Body"].read()
+        if len(data) > 100_000:
+            with open(cache_path, "wb") as f:
+                f.write(data)
+            return data
+    except Exception:
+        pass
+
+    # Потом CDN
+    url = _FONT_CDN_URLS[name]
+    req = urllib.request.Request(url, headers={"User-Agent": "pdf-generator/1.0"})
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        data = resp.read()
+
+    # Сохраняем в S3 для будущих вызовов
+    try:
+        s3 = get_s3()
+        s3.put_object(Bucket="files", Key=_FONT_S3_KEYS[name], Body=data, ContentType="font/ttf")
+    except Exception:
+        pass
+
+    with open(cache_path, "wb") as f:
+        f.write(data)
+    return data
+
+
+_font_errors = []
+
+
 def ensure_fonts():
-    global _fonts_registered
-    if not _fonts_registered:
-        _register_fonts()
-        _fonts_registered = True
+    global _fonts_registered, _font_errors
+    if _fonts_registered:
+        return
+    for name in _FONT_S3_KEYS:
+        try:
+            data = _load_font_bytes(name)
+            pdfmetrics.registerFont(TTFont(name, io.BytesIO(data)))
+            _font_errors.append(f"{name}:ok:{len(data)}")
+        except Exception as e:
+            _font_errors.append(f"{name}:fail:{str(e)[:120]}")
+    _fonts_registered = True
 
 
 def F(bold=False) -> str:
-    """Возвращает имя шрифта — DejaVu если зарегистрирован, иначе Helvetica."""
     name = "DejaVu-Bold" if bold else "DejaVu"
     try:
         pdfmetrics.getFont(name)
@@ -371,6 +401,14 @@ def handler(event: dict, context) -> dict:
 
     project = fetch_project(int(project_id))
     company = fetch_company()
+
+    font_debug = []
+    try:
+        pdfmetrics.getFont("DejaVu")
+        font_debug.append("DejaVu:ok")
+    except Exception as e:
+        font_debug.append(f"DejaVu:err:{e}")
+
     pdf_bytes = build_pdf(project, company)
 
     key = f"proposals/kp_{project_id}_{uuid.uuid4().hex[:8]}.pdf"
@@ -384,5 +422,5 @@ def handler(event: dict, context) -> dict:
 
     return {
         "statusCode": 200, "headers": CORS_HEADERS,
-        "body": json.dumps({"ok": True, "url": pdf_url, "size_kb": round(len(pdf_bytes) / 1024)}),
+        "body": json.dumps({"ok": True, "url": pdf_url, "size_kb": round(len(pdf_bytes) / 1024), "font_debug": font_debug, "font_load": _font_errors}),
     }

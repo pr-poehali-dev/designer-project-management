@@ -397,7 +397,7 @@ def handle_client_view(method, params, body):
             "chat": {"id": chat_id} if chat_id else None,
             "members": members,
             "messages": messages,
-        }, default=str)
+        })
     finally:
         conn.close()
 

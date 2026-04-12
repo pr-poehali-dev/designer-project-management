@@ -2,7 +2,7 @@ import { useRef, useEffect } from "react";
 import Icon from "@/components/ui/icon";
 import {
   AvitoChat, AvitoMessage, AutopilotLogEntry,
-  getChatName, getInitials, formatTime,
+  getChatName, getInitials, formatTime, extractText,
 } from "./chats.types";
 
 interface Props {
@@ -93,7 +93,7 @@ export default function AvitoMessagePanel({
             )}
             {messages.map((msg, i) => {
               const isMe = msg.author_id === myUserId;
-              const text = msg.content?.text?.text;
+              const text = extractText(msg.content);
               const imgSizes = msg.content?.image?.sizes;
               const imgUrl = imgSizes ? Object.values(imgSizes).pop() : null;
               const prevMsg = messages[i - 1];

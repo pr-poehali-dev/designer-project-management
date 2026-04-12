@@ -1,7 +1,7 @@
 import Icon from "@/components/ui/icon";
 import {
   AvitoChat, InternalChat,
-  getChatName, getInitials, formatTime,
+  getChatName, getInitials, formatTime, extractText,
 } from "./chats.types";
 
 interface Props {
@@ -119,7 +119,7 @@ export default function ChatsSidebar({
               const name = getChatName(chat, myUserId);
               const unread = chat.unread_messages_count ?? 0;
               const isActive = activeChat?.id === chat.id;
-              const lastText = chat.last_message?.content?.text?.text;
+              const lastText = extractText(chat.last_message?.content);
               const itemImg = chat.context?.value?.images?.main;
               const imgUrl = itemImg ? Object.values(itemImg)[0] : null;
 

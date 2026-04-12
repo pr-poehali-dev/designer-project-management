@@ -13,7 +13,7 @@ export interface AvitoChat {
   context?: { value?: { title?: string; url?: string; images?: { main?: Record<string, string> } } };
   users: AvitoUser[];
   last_message?: {
-    content?: { text?: { text?: string } };
+    content?: { text?: string | { text?: string } };
     created?: number;
     author_id?: number;
   };
@@ -24,7 +24,7 @@ export interface AvitoChat {
 export interface AvitoMessage {
   id: string;
   author_id: number;
-  content?: { text?: { text?: string }; image?: { sizes?: Record<string, string> } };
+  content?: { text?: string | { text?: string }; image?: { sizes?: Record<string, string> } };
   created?: number;
   type?: string;
   isOptimistic?: boolean;
@@ -62,6 +62,12 @@ export const INTERNAL_CHATS: InternalChat[] = [
     ]
   },
 ];
+
+export const extractText = (content?: { text?: string | { text?: string } }): string | undefined => {
+  if (!content?.text) return undefined;
+  if (typeof content.text === "string") return content.text;
+  return content.text.text;
+};
 
 export const getChatName = (chat: AvitoChat, myUserId: number | null): string =>
   chat.users?.find(u => u.id !== myUserId)?.name ||

@@ -130,7 +130,7 @@ export default function ChatsPage() {
     const optimistic: AvitoMessage = {
       id: `opt-${Date.now()}`,
       author_id: myUserId ?? 0,
-      content: { text: { text } },
+      content: { text },
       created: Math.floor(Date.now() / 1000),
       isOptimistic: true,
     };

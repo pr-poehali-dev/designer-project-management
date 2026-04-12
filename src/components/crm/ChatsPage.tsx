@@ -7,9 +7,10 @@ import {
 import ChatsSidebar from "./ChatsSidebar";
 import AvitoMessagePanel from "./AvitoMessagePanel";
 import InternalMessagePanel from "./InternalMessagePanel";
+import AutopilotTraining from "./AutopilotTraining";
 
 export default function ChatsPage() {
-  const [tab, setTab] = useState<"avito" | "internal">("avito");
+  const [tab, setTab] = useState<"avito" | "internal" | "training">("avito");
 
   // Avito state
   const [chats, setChats] = useState<AvitoChat[]>([]);
@@ -206,6 +207,9 @@ export default function ChatsPage() {
           )}
           {tab === "internal" && (
             <InternalMessagePanel activeInternal={activeInternal} />
+          )}
+          {tab === "training" && (
+            <AutopilotTraining />
           )}
         </div>
 

@@ -1,45 +1,57 @@
 """
 Авито Messenger API v3 + автоответ через ChatGPT (Polza.ai).
-Получение токена, списка чатов, сообщений, отправка ответов и автопилот.
+Получение токена, списка чатов, сообщений, отправка ответов, автопилот и настройки промпта.
 """
 import json
 import os
 import urllib.request
 import urllib.parse
 import urllib.error
+import psycopg2
 
 
 AVITO_AUTH_URL = "https://api.avito.ru/token"
 AVITO_API_BASE = "https://api.avito.ru"
 POLZA_API_URL  = "https://api.polza.ai/v1/chat/completions"
 
-SYSTEM_PROMPT = """Ты — вежливый менеджер компании DaVinci, тебя зовут Юлия.
-Компания занимается дизайном интерьеров.
-
-Прайс:
-- Стандартный проект: 1500 руб.
-- Полный проект: 2500 руб.
-
-Твоя главная цель — получить номер телефона клиента, чтобы перезвонить и обсудить детали.
-
-Правила:
-1. Отвечай дружелюбно и коротко (2-4 предложения максимум).
-2. Расскажи об услуге если спрашивают, упомяни цены.
-3. В конце КАЖДОГО ответа мягко проси номер телефона: "Оставьте, пожалуйста, ваш номер — я перезвоню и всё расскажу подробнее!"
-4. Если клиент уже оставил номер — поблагодари и скажи что перезвонишь в ближайшее время.
-5. Не обещай конкретное время звонка.
-6. Пиши только на русском языке.
-7. Никогда не представляйся как ИИ или бот."""
+DEFAULT_PROMPT = """Ты — вежливый менеджер. Отвечай дружелюбно и коротко (2-4 предложения).
+В конце каждого ответа мягко проси номер телефона клиента.
+Пиши только на русском языке. Никогда не представляйся как ИИ или бот."""
 
 
 CORS_HEADERS = {
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, PUT, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, X-User-Id, X-Auth-Token",
 }
 
 
-# ── Avito helpers ──────────────────────────────────────────────────────────────
+def get_db():
+    return psycopg2.connect(os.environ["DATABASE_URL"])
+
+
+def get_saved_prompt() -> str:
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT prompt FROM autopilot_settings ORDER BY id LIMIT 1")
+        row = cur.fetchone()
+        return row[0] if row and row[0] else ""
+    finally:
+        conn.close()
+
+
+def save_prompt(prompt: str):
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("UPDATE autopilot_settings SET prompt = %s, updated_at = NOW() WHERE id = 1", (prompt,))
+        if cur.rowcount == 0:
+            cur.execute("INSERT INTO autopilot_settings (prompt) VALUES (%s)", (prompt,))
+        conn.commit()
+    finally:
+        conn.close()
+
 
 def get_avito_token() -> str:
     data = urllib.parse.urlencode({
@@ -86,11 +98,9 @@ def send_avito_message(user_id: int, chat_id: str, text: str, token: str) -> dic
     )
 
 
-# ── ChatGPT helper ─────────────────────────────────────────────────────────────
-
-def chatgpt_reply(history: list[dict]) -> str:
-    """Отправляет историю сообщений в ChatGPT и возвращает ответ."""
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}] + history
+def chatgpt_reply(history: list[dict], system_prompt: str) -> str:
+    """Отправляет историю в ChatGPT с пользовательским промптом."""
+    messages = [{"role": "system", "content": system_prompt}] + history
 
     payload = json.dumps({
         "model": "openai/gpt-4o-mini",
@@ -113,9 +123,8 @@ def chatgpt_reply(history: list[dict]) -> str:
     return result["choices"][0]["message"]["content"].strip()
 
 
-# ── Main handler ───────────────────────────────────────────────────────────────
-
 def handler(event: dict, context) -> dict:
+    """Авито чаты + автопилот с настраиваемым промптом."""
     if event.get("httpMethod") == "OPTIONS":
         return {"statusCode": 200, "headers": CORS_HEADERS, "body": ""}
 
@@ -123,11 +132,27 @@ def handler(event: dict, context) -> dict:
     params = event.get("queryStringParameters") or {}
     action = params.get("action", "chats")
 
+    # ── GET/POST prompt — не требует Авито токена ─────────────────────────────
+    if action == "prompt" and method == "GET":
+        prompt = get_saved_prompt()
+        return {
+            "statusCode": 200, "headers": CORS_HEADERS,
+            "body": json.dumps({"ok": True, "prompt": prompt})
+        }
+
+    if action == "prompt" and method in ("POST", "PUT"):
+        body = json.loads(event.get("body") or "{}")
+        prompt = body.get("prompt", "")
+        save_prompt(prompt)
+        return {
+            "statusCode": 200, "headers": CORS_HEADERS,
+            "body": json.dumps({"ok": True})
+        }
+
     avito_token = get_avito_token()
     me = avito_get("/core/v1/accounts/self", avito_token)
     user_id = me["id"]
 
-    # ── GET chats ──────────────────────────────────────────────────────────────
     if action == "chats":
         unread_only = params.get("unread_only", "false") == "true"
         url = f"/messenger/v2/accounts/{user_id}/chats?unread_only={'true' if unread_only else 'false'}&limit=50"
@@ -137,7 +162,6 @@ def handler(event: dict, context) -> dict:
             "body": json.dumps({"ok": True, "chats": data.get("chats", []), "user_id": user_id})
         }
 
-    # ── GET messages ───────────────────────────────────────────────────────────
     elif action == "messages":
         chat_id = params.get("chat_id")
         if not chat_id:
@@ -155,7 +179,6 @@ def handler(event: dict, context) -> dict:
             "body": json.dumps({"ok": True, "messages": msgs, "user_id": user_id})
         }
 
-    # ── POST send ──────────────────────────────────────────────────────────────
     elif action == "send" and method == "POST":
         body = json.loads(event.get("body") or "{}")
         chat_id = body.get("chat_id")
@@ -169,15 +192,13 @@ def handler(event: dict, context) -> dict:
             "body": json.dumps({"ok": True, "result": result})
         }
 
-    # ── POST autopilot ─────────────────────────────────────────────────────────
-    # Вызывается фронтендом каждые N секунд.
-    # Находит чаты с непрочитанными сообщениями, генерирует и отправляет ответ.
     elif action == "autopilot" and method == "POST":
         body = json.loads(event.get("body") or "{}")
-        # Можно передать конкретный chat_id, иначе обработаем все непрочитанные
         target_chat_id = body.get("chat_id")
 
-        # Берём только непрочитанные чаты
+        saved_prompt = get_saved_prompt()
+        system_prompt = saved_prompt if saved_prompt.strip() else DEFAULT_PROMPT
+
         chats_data = avito_get(
             f"/messenger/v2/accounts/{user_id}/chats?unread_only=true&limit=20",
             avito_token
@@ -223,10 +244,7 @@ def handler(event: dict, context) -> dict:
                 if not history:
                     continue
 
-                # Генерируем ответ
-                reply_text = chatgpt_reply(history)
-
-                # Отправляем в Авито
+                reply_text = chatgpt_reply(history, system_prompt)
                 send_avito_message(user_id, chat_id, reply_text, avito_token)
 
                 processed.append({
@@ -248,5 +266,7 @@ def handler(event: dict, context) -> dict:
             })
         }
 
-    return {"statusCode": 400, "headers": CORS_HEADERS,
-            "body": json.dumps({"ok": False, "error": "unknown action"})}
+    return {
+        "statusCode": 400, "headers": CORS_HEADERS,
+        "body": json.dumps({"ok": False, "error": f"Unknown action: {action}"})
+    }

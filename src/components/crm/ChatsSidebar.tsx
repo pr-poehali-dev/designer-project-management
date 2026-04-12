@@ -5,8 +5,8 @@ import {
 } from "./chats.types";
 
 interface Props {
-  tab: "avito" | "internal";
-  setTab: (t: "avito" | "internal") => void;
+  tab: "avito" | "internal" | "training";
+  setTab: (t: "avito" | "internal" | "training") => void;
   totalUnread: number;
 
   // Autopilot
@@ -54,6 +54,11 @@ export default function ChatsSidebar({
           className={`flex-1 py-3 text-xs font-semibold transition-colors ${tab === "internal" ? "text-ink border-b-2 border-ink" : "text-ink-faint hover:text-ink"}`}>
           Команда
         </button>
+        <button onClick={() => setTab("training")}
+          className={`flex-1 py-3 text-xs font-semibold flex items-center justify-center gap-1 transition-colors ${tab === "training" ? "text-ink border-b-2 border-ink" : "text-ink-faint hover:text-ink"}`}>
+          <Icon name="GraduationCap" size={12} />
+          Обучение
+        </button>
       </div>
 
       {/* Autopilot toggle */}
@@ -78,7 +83,7 @@ export default function ChatsSidebar({
       )}
 
       {/* Search + refresh */}
-      <div className="p-3 border-b border-snow-dark flex gap-2">
+      <div className={`p-3 border-b border-snow-dark flex gap-2 ${tab === "training" ? "hidden" : ""}`}>
         <div className="flex items-center gap-2 bg-snow rounded-full px-3 py-2 flex-1">
           <Icon name="Search" size={13} className="text-ink-faint" />
           <input placeholder="Поиск..." className="bg-transparent text-xs placeholder:text-ink-faint focus:outline-none w-full" />
@@ -92,8 +97,20 @@ export default function ChatsSidebar({
         )}
       </div>
 
+      {tab === "training" && (
+        <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
+          <div className="w-14 h-14 rounded-2xl bg-ink/5 flex items-center justify-center mb-3">
+            <Icon name="GraduationCap" size={28} className="text-ink-muted" />
+          </div>
+          <p className="text-sm font-medium mb-1">Настройка автоответа</p>
+          <p className="text-xs text-ink-faint leading-relaxed">
+            Заполните инструкцию справа — автопилот будет использовать её при ответах клиентам
+          </p>
+        </div>
+      )}
+
       {/* Chat list */}
-      <div className="flex-1 overflow-y-auto">
+      <div className={`flex-1 overflow-y-auto ${tab === "training" ? "hidden" : ""}`}>
         {tab === "avito" && (
           <>
             {loadingChats && (

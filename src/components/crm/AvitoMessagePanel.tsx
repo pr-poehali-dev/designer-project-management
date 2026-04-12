@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, useEffect } from "react";
 import Icon from "@/components/ui/icon";
 import {
   AvitoChat, AvitoMessage, AutopilotLogEntry,
@@ -25,6 +25,10 @@ export default function AvitoMessagePanel({
   autopilotLog,
 }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
   return (
     <>

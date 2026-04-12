@@ -6,7 +6,7 @@ import psycopg2.extras
 
 CORS_HEADERS = {
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, POST, PUT, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
 }
 
@@ -268,14 +268,33 @@ def handle_templates(method, params, body):
             cur.execute("SELECT * FROM estimate_template_items WHERE template_id = %s ORDER BY sort_order, id", (template_id,))
             tpl_items = cur.fetchall()
             cur.execute("SELECT COALESCE(MAX(sort_order), -1) + 1 as next_sort FROM work_items WHERE project_id = %s AND sort_order >= 0", (project_id,))
-            next_sort = cur.fetchone()["next_sort"]
+            next_sort = int(cur.fetchone()["next_sort"] or 0)
+            added_ids = []
             for i, item in enumerate(tpl_items):
                 cur.execute(
-                    "INSERT INTO work_items (project_id, name, quantity, unit, price, sort_order) VALUES (%s,%s,%s,%s,%s,%s)",
+                    "INSERT INTO work_items (project_id, name, quantity, unit, price, sort_order) VALUES (%s,%s,%s,%s,%s,%s) RETURNING id",
                     (project_id, item["name"], item["quantity"], item["unit"], item["price"], next_sort + i)
                 )
+                added_ids.append(cur.fetchone()["id"])
             conn.commit()
-            return json_resp({"ok": True, "added": len(tpl_items)})
+            cur.execute("SELECT * FROM work_items WHERE id = ANY(%s) ORDER BY sort_order", (added_ids,))
+            new_items = [dict(r) for r in cur.fetchall()]
+            return json_resp({"ok": True, "added": len(tpl_items), "items": new_items})
+
+        if method == "PUT" and template_id:
+            name = body.get("name")
+            items_data = body.get("items")
+            if name:
+                cur.execute("UPDATE estimate_templates SET name = %s WHERE id = %s", (name, template_id))
+            if items_data is not None:
+                cur.execute("DELETE FROM estimate_template_items WHERE template_id = %s", (template_id,))
+                for i, item in enumerate(items_data):
+                    cur.execute(
+                        "INSERT INTO estimate_template_items (template_id, name, quantity, unit, price, sort_order) VALUES (%s,%s,%s,%s,%s,%s)",
+                        (template_id, item.get("name", ""), item.get("quantity", 1), item.get("unit", "шт"), item.get("price", 0), i)
+                    )
+            conn.commit()
+            return json_resp({"ok": True})
     finally:
         conn.close()
 

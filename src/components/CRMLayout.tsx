@@ -8,6 +8,8 @@ import FinancePage from "@/components/crm/FinancePage";
 import ContractsPage from "@/components/crm/ContractsPage";
 import MarketingPage from "@/components/crm/MarketingPage";
 import ChatsPage from "@/components/crm/ChatsPage";
+import ProfilePage from "@/components/crm/ProfilePage";
+import CompanyPage from "@/components/crm/CompanyPage";
 
 interface Props {
   onLogout: () => void;
@@ -24,6 +26,11 @@ const NAV_ITEMS = [
   { id: "chats", label: "Чаты", icon: "MessageSquare" },
 ];
 
+const BOTTOM_NAV = [
+  { id: "profile", label: "Профиль", icon: "UserCircle" },
+  { id: "company", label: "Компания", icon: "Building2" },
+];
+
 export default function CRMLayout({ onLogout }: Props) {
   const [active, setActive] = useState("dashboard");
   const [collapsed, setCollapsed] = useState(false);
@@ -38,6 +45,8 @@ export default function CRMLayout({ onLogout }: Props) {
       case "contracts": return <ContractsPage />;
       case "marketing": return <MarketingPage />;
       case "chats": return <ChatsPage />;
+      case "profile": return <ProfilePage />;
+      case "company": return <CompanyPage />;
       default: return <DashboardPage />;
     }
   };
@@ -73,6 +82,21 @@ export default function CRMLayout({ onLogout }: Props) {
           ))}
         </nav>
 
+        <div className="border-t border-snow-dark py-2 px-2">
+          {BOTTOM_NAV.map(item => (
+            <button
+              key={item.id}
+              onClick={() => setActive(item.id)}
+              className={`sidebar-item w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-lg mb-0.5 ${
+                active === item.id ? "active" : "text-ink-muted hover:text-ink hover:bg-snow"
+              }`}
+            >
+              <Icon name={item.icon} fallback="Circle" size={16} className="shrink-0" />
+              {!collapsed && <span>{item.label}</span>}
+            </button>
+          ))}
+        </div>
+
         <div className="border-t border-snow-dark p-3">
           {collapsed ? (
             <button onClick={onLogout} className="text-ink-faint hover:text-ink transition-colors mx-auto block">
@@ -99,7 +123,7 @@ export default function CRMLayout({ onLogout }: Props) {
       <main className="flex-1 overflow-y-auto">
         <div className="sticky top-0 z-10 flex items-center justify-between px-8 h-16 bg-white/80 backdrop-blur-lg border-b border-snow-dark">
           <h1 className="font-display text-lg font-semibold tracking-tight">
-            {NAV_ITEMS.find(n => n.id === active)?.label}
+            {[...NAV_ITEMS, ...BOTTOM_NAV].find(n => n.id === active)?.label}
           </h1>
           <div className="flex items-center gap-3">
             <button className="relative text-ink-faint hover:text-ink transition-colors">

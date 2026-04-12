@@ -1,8 +1,11 @@
 """Профиль пользователя и данные компании — чтение и сохранение."""
 import json
 import os
+import base64
+import uuid
 import psycopg2
 import psycopg2.extras
+import boto3
 
 
 CORS_HEADERS = {
@@ -24,6 +27,15 @@ def get_db():
     return psycopg2.connect(os.environ["DATABASE_URL"])
 
 
+def get_s3():
+    return boto3.client(
+        "s3",
+        endpoint_url="https://bucket.poehali.dev",
+        aws_access_key_id=os.environ["AWS_ACCESS_KEY_ID"],
+        aws_secret_access_key=os.environ["AWS_SECRET_ACCESS_KEY"],
+    )
+
+
 def get_profile() -> dict:
     conn = get_db()
     try:
@@ -39,8 +51,7 @@ def save_profile(data: dict):
     conn = get_db()
     try:
         cur = conn.cursor()
-        sets = []
-        vals = []
+        sets, vals = [], []
         for f in PROFILE_FIELDS:
             if f in data:
                 sets.append(f"{f} = %s")
@@ -70,9 +81,8 @@ def save_company(data: dict):
     conn = get_db()
     try:
         cur = conn.cursor()
-        sets = []
-        vals = []
-        for f in COMPANY_FIELDS:
+        sets, vals = [], []
+        for f in COMPANY_FIELDS + ["logo_url"]:
             if f in data:
                 sets.append(f"{f} = %s")
                 vals.append(data[f])
@@ -86,8 +96,33 @@ def save_company(data: dict):
         conn.close()
 
 
+def upload_logo(body: dict) -> str:
+    if body.get("remove"):
+        return ""
+    file_data = body.get("file")
+    mime = body.get("mime", "image/png")
+    if not file_data:
+        return ""
+
+    raw = base64.b64decode(file_data)
+    ext = mime.split("/")[-1].replace("jpeg", "jpg")
+    key = f"logos/{uuid.uuid4()}.{ext}"
+
+    s3 = get_s3()
+    s3.put_object(
+        Bucket="files",
+        Key=key,
+        Body=raw,
+        ContentType=mime,
+        ACL="public-read",
+    )
+
+    access_key = os.environ["AWS_ACCESS_KEY_ID"]
+    return f"https://cdn.poehali.dev/projects/{access_key}/bucket/{key}"
+
+
 def handler(event: dict, context) -> dict:
-    """Чтение и сохранение профиля пользователя и данных компании."""
+    """Чтение и сохранение профиля, данных компании и загрузка логотипа."""
     if event.get("httpMethod") == "OPTIONS":
         return {"statusCode": 200, "headers": CORS_HEADERS, "body": ""}
 
@@ -127,6 +162,15 @@ def handler(event: dict, context) -> dict:
         return {
             "statusCode": 200, "headers": CORS_HEADERS,
             "body": json.dumps({"ok": True})
+        }
+
+    if action == "upload_logo" and method == "POST":
+        body = json.loads(event.get("body") or "{}")
+        url = upload_logo(body)
+        save_company({"logo_url": url})
+        return {
+            "statusCode": 200, "headers": CORS_HEADERS,
+            "body": json.dumps({"ok": True, "url": url})
         }
 
     return {

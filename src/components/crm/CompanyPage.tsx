@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Icon from "@/components/ui/icon";
 
 const API = "https://functions.poehali.dev/1e1d2ff7-8833-4400-a59e-564cb2ac887b";
@@ -18,13 +18,14 @@ interface Company {
   director_name: string;
   contact_phone: string;
   contact_email: string;
+  logo_url?: string;
 }
 
 const EMPTY: Company = {
   legal_form: "self_employed", company_name: "", inn: "", ogrn: "", kpp: "",
   legal_address: "", actual_address: "",
   bank_name: "", bik: "", checking_account: "", corr_account: "",
-  director_name: "", contact_phone: "", contact_email: "",
+  director_name: "", contact_phone: "", contact_email: "", logo_url: "",
 };
 
 const LEGAL_FORMS = [
@@ -39,6 +40,9 @@ export default function CompanyPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<"idle" | "saved" | "error">("idle");
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [logoPreview, setLogoPreview] = useState<string>("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadCompany = useCallback(async () => {
     setLoading(true);
@@ -49,6 +53,7 @@ export default function CompanyPage() {
         const c = { ...EMPTY, ...data.company };
         setCompany(c);
         setSaved({ ...c });
+        if (data.company.logo_url) setLogoPreview(data.company.logo_url);
       }
     } catch { /* ignore */ } finally { setLoading(false); }
   }, []);
@@ -73,6 +78,54 @@ export default function CompanyPage() {
     } catch { setStatus("error"); } finally { setSaving(false); }
   };
 
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      alert("Файл слишком большой. Максимум 5 МБ.");
+      return;
+    }
+    setUploadingLogo(true);
+    try {
+      const preview = URL.createObjectURL(file);
+      setLogoPreview(preview);
+      const reader = new FileReader();
+      reader.onload = async (ev) => {
+        const base64 = (ev.target?.result as string).split(",")[1];
+        const r = await fetch(`${API}?action=upload_logo`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ file: base64, mime: file.type }),
+        });
+        const data = await r.json();
+        if (data.ok) {
+          setLogoPreview(data.url);
+          setCompany(prev => ({ ...prev, logo_url: data.url }));
+          setSaved(prev => prev ? { ...prev, logo_url: data.url } : prev);
+        }
+        setUploadingLogo(false);
+      };
+      reader.readAsDataURL(file);
+    } catch {
+      setUploadingLogo(false);
+    }
+  };
+
+  const removeLogo = async () => {
+    setLogoPreview("");
+    setCompany(prev => ({ ...prev, logo_url: "" }));
+    await fetch(`${API}?action=upload_logo`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ file: "", mime: "image/png", remove: true }),
+    }).catch(() => {/* ignore */});
+    await fetch(`${API}?action=company`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ logo_url: "" }),
+    }).catch(() => {/* ignore */});
+  };
+
   const set = (field: keyof Company, value: string) => setCompany(prev => ({ ...prev, [field]: value }));
   const hasChanges = saved && JSON.stringify(company) !== JSON.stringify(saved);
   const isOOO = company.legal_form === "ooo";
@@ -87,6 +140,72 @@ export default function CompanyPage() {
 
   return (
     <div className="max-w-3xl mx-auto space-y-8">
+      <div className="card-surface rounded-2xl p-8">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-10 h-10 rounded-xl bg-snow flex items-center justify-center">
+            <Icon name="Image" size={18} className="text-ink-muted" />
+          </div>
+          <div>
+            <h3 className="font-semibold">Логотип компании</h3>
+            <p className="text-xs text-ink-faint">Используется в документах, договорах и КП</p>
+          </div>
+        </div>
+
+        <div className="flex items-start gap-6">
+          <div className="relative">
+            <div className={`w-32 h-32 rounded-2xl border-2 border-dashed flex items-center justify-center overflow-hidden transition-all ${logoPreview ? "border-snow-dark" : "border-snow-dark hover:border-ink-faint"}`}>
+              {logoPreview ? (
+                <img src={logoPreview} alt="Логотип" className="w-full h-full object-contain p-2" />
+              ) : (
+                <div className="flex flex-col items-center gap-2 text-ink-faint">
+                  <Icon name="ImagePlus" size={24} />
+                  <span className="text-[10px] text-center leading-tight">PNG, JPG<br />до 5 МБ</span>
+                </div>
+              )}
+              {uploadingLogo && (
+                <div className="absolute inset-0 bg-white/80 flex items-center justify-center rounded-2xl">
+                  <div className="w-5 h-5 border-2 border-ink/20 border-t-ink rounded-full animate-spin" />
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3 pt-1">
+            <p className="text-sm text-ink-muted">Рекомендуем PNG с прозрачным фоном, минимум 200×200 px</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadingLogo}
+                className="px-4 py-2 bg-ink text-white text-sm font-medium rounded-xl hover:bg-ink-light transition-colors disabled:opacity-40 flex items-center gap-2">
+                <Icon name="Upload" size={14} />
+                {logoPreview ? "Заменить" : "Загрузить"}
+              </button>
+              {logoPreview && (
+                <button
+                  onClick={removeLogo}
+                  className="px-4 py-2 border border-snow-dark text-sm font-medium rounded-xl hover:bg-snow transition-colors text-ink-muted hover:text-red-500 flex items-center gap-2">
+                  <Icon name="Trash2" size={14} />
+                  Удалить
+                </button>
+              )}
+            </div>
+            {logoPreview && !uploadingLogo && (
+              <p className="text-[11px] text-green-600 flex items-center gap-1">
+                <Icon name="Check" size={12} /> Логотип сохранён
+              </p>
+            )}
+          </div>
+        </div>
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/webp,image/svg+xml"
+          onChange={handleLogoUpload}
+          className="hidden"
+        />
+      </div>
+
       <div className="card-surface rounded-2xl p-8">
         <div className="flex items-center gap-3 mb-6">
           <div className="w-10 h-10 rounded-xl bg-snow flex items-center justify-center">

@@ -13,6 +13,7 @@ export default function EstimateTable({ projectId, discountPercent }: {
   projectId: number; discountPercent: number;
 }) {
   const [items, setItems] = useState<WorkItem[]>([]);
+  const [savedItems, setSavedItems] = useState<string>("[]");
   const [templates, setTemplates] = useState<Template[]>([]);
   const [showTemplates, setShowTemplates] = useState(false);
   const [savingTemplate, setSavingTemplate] = useState(false);
@@ -21,16 +22,21 @@ export default function EstimateTable({ projectId, discountPercent }: {
   const [newName, setNewName] = useState("");
   const [editingTemplate, setEditingTemplate] = useState<{ id: number; name: string; items: TemplateItem[] } | null>(null);
   const [loadingTemplateId, setLoadingTemplateId] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saved" | "error">("idle");
 
   const dragItem = useRef<number | null>(null);
   const dragOver = useRef<number | null>(null);
-  const saveTimers = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
 
   const load = useCallback(async () => {
     try {
       const r = await fetch(`${API}?action=projects&id=${projectId}`);
       const data = await r.json();
-      if (data.ok) setItems(data.work_items || []);
+      if (data.ok) {
+        const loaded = data.work_items || [];
+        setItems(loaded);
+        setSavedItems(JSON.stringify(loaded.map((i: WorkItem) => ({ id: i.id, name: i.name, quantity: i.quantity, unit: i.unit, price: i.price }))));
+      }
     } catch { /* ignore */ }
   }, [projectId]);
 
@@ -44,6 +50,12 @@ export default function EstimateTable({ projectId, discountPercent }: {
 
   useEffect(() => { load(); }, [load]);
 
+  // Проверяем есть ли несохранённые изменения (только для существующих строк с реальными id)
+  const hasUnsaved = (() => {
+    const current = JSON.stringify(items.filter(i => i.id > 0).map(i => ({ id: i.id, name: i.name, quantity: i.quantity, unit: i.unit, price: i.price })));
+    return current !== savedItems;
+  })();
+
   const updateItemLocal = (id: number, field: string, value: string) => {
     setItems(prev => prev.map(item => {
       if (item.id !== id) return item;
@@ -54,24 +66,29 @@ export default function EstimateTable({ projectId, discountPercent }: {
       else if (field === "price") u.price = parseFloat(value) || 0;
       return u;
     }));
-    if (id < 0) return;
-    if (saveTimers.current[id]) clearTimeout(saveTimers.current[id]);
-    saveTimers.current[id] = setTimeout(() => {
-      const payload: Record<string, unknown> = {};
-      if (field === "name") payload.name = value;
-      else if (field === "quantity") payload.quantity = parseFloat(value) || 0;
-      else if (field === "unit") payload.unit = value;
-      else if (field === "price") payload.price = parseFloat(value) || 0;
-      fetch(`${API}?action=work_items&id=${id}`, {
-        method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      }).catch(() => {/* ignore */});
-    }, 800);
+  };
+
+  const saveAll = async () => {
+    setSaving(true);
+    setSaveStatus("idle");
+    try {
+      const realItems = items.filter(i => i.id > 0);
+      await Promise.all(realItems.map(item =>
+        fetch(`${API}?action=work_items&id=${item.id}`, {
+          method: "PUT", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: item.name, quantity: item.quantity, unit: item.unit, price: item.price }),
+        })
+      ));
+      setSavedItems(JSON.stringify(realItems.map(i => ({ id: i.id, name: i.name, quantity: i.quantity, unit: i.unit, price: i.price }))));
+      setSaveStatus("saved");
+      setTimeout(() => setSaveStatus("idle"), 3000);
+    } catch { setSaveStatus("error"); } finally { setSaving(false); }
   };
 
   const addItem = async () => {
     if (!newName.trim()) return;
-    const maxSort = items.length > 0 ? Math.max(...items.map(i => i.sort_order)) + 1 : 0;
+    const realItems = items.filter(i => i.id > 0);
+    const maxSort = realItems.length > 0 ? Math.max(...realItems.map(i => i.sort_order)) + 1 : 0;
     const tempId = -Date.now();
     const row: WorkItem = { id: tempId, name: newName.trim(), quantity: 1, unit: "шт", price: 0, sort_order: maxSort };
     setItems(prev => [...prev, row]);
@@ -84,12 +101,18 @@ export default function EstimateTable({ projectId, discountPercent }: {
       const data = await r.json();
       if (data.ok && data.id) {
         setItems(prev => prev.map(i => i.id === tempId ? { ...i, id: data.id } : i));
+        setSavedItems(prev => {
+          const arr = JSON.parse(prev);
+          arr.push({ id: data.id, name: row.name, quantity: 1, unit: "шт", price: 0 });
+          return JSON.stringify(arr);
+        });
       }
     } catch { /* ignore */ }
   };
 
   const removeItem = async (id: number) => {
     setItems(prev => prev.filter(i => i.id !== id));
+    setSavedItems(prev => JSON.stringify(JSON.parse(prev).filter((i: { id: number }) => i.id !== id)));
     if (id < 0) return;
     try {
       await fetch(`${API}?action=work_items&id=${id}&delete=true`, {
@@ -112,7 +135,7 @@ export default function EstimateTable({ projectId, discountPercent }: {
     try {
       await fetch(`${API}?action=reorder`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: reordered.map(i => i.id) }),
+        body: JSON.stringify({ ids: reordered.filter(i => i.id > 0).map(i => i.id) }),
       });
     } catch { /* ignore */ }
   };
@@ -126,6 +149,11 @@ export default function EstimateTable({ projectId, discountPercent }: {
       const data = await r.json();
       if (data.ok && data.items) {
         setItems(prev => [...prev, ...data.items]);
+        setSavedItems(prev => {
+          const arr = JSON.parse(prev);
+          data.items.forEach((i: WorkItem) => arr.push({ id: i.id, name: i.name, quantity: i.quantity, unit: i.unit, price: i.price }));
+          return JSON.stringify(arr);
+        });
       }
       setShowTemplates(false);
     } catch { /* ignore */ }
@@ -139,7 +167,7 @@ export default function EstimateTable({ projectId, discountPercent }: {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: templateName.trim(),
-          items: items.map(i => ({ name: i.name, quantity: i.quantity, unit: i.unit, price: i.price })),
+          items: items.filter(i => i.id > 0).map(i => ({ name: i.name, quantity: i.quantity, unit: i.unit, price: i.price })),
         }),
       });
       setTemplateName(""); setShowSaveAs(false);
@@ -154,8 +182,7 @@ export default function EstimateTable({ projectId, discountPercent }: {
       const data = await r.json();
       if (data.ok) {
         setEditingTemplate({
-          id,
-          name: data.template.name,
+          id, name: data.template.name,
           items: data.items.map((i: TemplateItem) => ({ name: i.name, quantity: i.quantity, unit: i.unit, price: i.price })),
         });
       }
@@ -204,17 +231,44 @@ export default function EstimateTable({ projectId, discountPercent }: {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <button onClick={() => { setShowTemplates(!showTemplates); if (!showTemplates) loadTemplates(); }}
-          className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all border ${showTemplates ? "bg-ink text-white border-ink" : "bg-white border-snow-dark text-ink-muted hover:text-ink hover:border-ink-faint"}`}>
-          <Icon name="FileStack" size={13} /> Шаблоны
-        </button>
-        {items.length > 0 && (
-          <button onClick={() => setShowSaveAs(!showSaveAs)}
-            className="px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 bg-white border border-snow-dark text-ink-muted hover:text-ink hover:border-ink-faint transition-all">
-            <Icon name="BookmarkPlus" size={13} /> Сохранить как шаблон
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <button onClick={() => { setShowTemplates(!showTemplates); if (!showTemplates) loadTemplates(); }}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all border ${showTemplates ? "bg-ink text-white border-ink" : "bg-white border-snow-dark text-ink-muted hover:text-ink hover:border-ink-faint"}`}>
+            <Icon name="FileStack" size={13} /> Шаблоны
           </button>
-        )}
+          {items.filter(i => i.id > 0).length > 0 && (
+            <button onClick={() => setShowSaveAs(!showSaveAs)}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 bg-white border border-snow-dark text-ink-muted hover:text-ink hover:border-ink-faint transition-all">
+              <Icon name="BookmarkPlus" size={13} /> Сохранить как шаблон
+            </button>
+          )}
+        </div>
+
+        <div className="flex items-center gap-3">
+          {saveStatus === "saved" && (
+            <span className="flex items-center gap-1 text-xs text-green-600">
+              <Icon name="Check" size={13} /> Смета сохранена
+            </span>
+          )}
+          {saveStatus === "error" && (
+            <span className="flex items-center gap-1 text-xs text-red-500">
+              <Icon name="AlertCircle" size={13} /> Ошибка
+            </span>
+          )}
+          {hasUnsaved && saveStatus === "idle" && (
+            <span className="text-xs text-amber-600 flex items-center gap-1">
+              <Icon name="AlertCircle" size={13} /> Есть несохранённые изменения
+            </span>
+          )}
+          <button onClick={saveAll} disabled={saving || !hasUnsaved}
+            className={`px-4 py-2 rounded-xl text-xs font-medium flex items-center gap-1.5 transition-all ${hasUnsaved ? "bg-ink text-white hover:bg-ink-light" : "bg-snow text-ink-faint cursor-not-allowed"}`}>
+            {saving
+              ? <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              : <Icon name="Save" size={13} />}
+            {saving ? "Сохраняю..." : "Сохранить смету"}
+          </button>
+        </div>
       </div>
 
       {showSaveAs && (

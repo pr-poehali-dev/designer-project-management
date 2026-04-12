@@ -19,6 +19,53 @@ from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
     HRFlowable, Image
 )
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+
+
+def _register_fonts():
+    """Загружает и регистрирует шрифт DejaVu с поддержкой кириллицы."""
+    font_urls = {
+        "DejaVu": "https://github.com/dejavu-fonts/dejavu-fonts/releases/download/version_2_37/dejavu-fonts-ttf-2.37.zip",
+    }
+    # Используем CDN jsDelivr для загрузки TTF напрямую
+    font_urls = {
+        "DejaVu": "https://cdn.jsdelivr.net/npm/@fontsource/source-sans-pro@5.0.0/files/source-sans-pro-cyrillic-400-normal.woff2",
+    }
+    # Лучший вариант — скачать с GitHub releases через raw.githubusercontent.com
+    font_urls = {
+        "DejaVu": "https://raw.githubusercontent.com/dejavu-fonts/dejavu-fonts/master/ttf/DejaVuSans.ttf",
+        "DejaVu-Bold": "https://raw.githubusercontent.com/dejavu-fonts/dejavu-fonts/master/ttf/DejaVuSans-Bold.ttf",
+    }
+    for name, url in font_urls.items():
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = resp.read()
+            buf = io.BytesIO(data)
+            pdfmetrics.registerFont(TTFont(name, buf))
+        except Exception:
+            pass
+
+
+_fonts_registered = False
+
+
+def ensure_fonts():
+    global _fonts_registered
+    if not _fonts_registered:
+        _register_fonts()
+        _fonts_registered = True
+
+
+def F(bold=False) -> str:
+    """Возвращает имя шрифта — DejaVu если зарегистрирован, иначе Helvetica."""
+    name = "DejaVu-Bold" if bold else "DejaVu"
+    try:
+        pdfmetrics.getFont(name)
+        return name
+    except Exception:
+        return "Helvetica-Bold" if bold else "Helvetica"
 
 
 CORS_HEADERS = {
@@ -119,6 +166,8 @@ def fmt_qty(val) -> str:
 
 
 def build_pdf(project: dict, company: dict) -> bytes:
+    ensure_fonts()
+
     buf = io.BytesIO()
     W, H = A4
     margin = 20 * mm
@@ -132,7 +181,7 @@ def build_pdf(project: dict, company: dict) -> bytes:
     usable_w = W - 2 * margin
 
     def ps(name, **kw):
-        defaults = dict(fontName="Helvetica", fontSize=9, leading=13, textColor=INK)
+        defaults = dict(fontName=F(), fontSize=9, leading=13, textColor=INK)
         defaults.update(kw)
         return ParagraphStyle(name, **defaults)
 
@@ -155,12 +204,12 @@ def build_pdf(project: dict, company: dict) -> bytes:
     if logo_img:
         left_cell.append(logo_img)
         left_cell.append(Spacer(1, 5))
-    left_cell.append(Paragraph(company_name, ps("cn", fontName="Helvetica-Bold", fontSize=14, leading=17)))
+    left_cell.append(Paragraph(company_name, ps("cn", fontName=F(True), fontSize=14, leading=17)))
     for c in contacts:
         left_cell.append(Paragraph(c, ps("cc", fontSize=8, textColor=INK_MID, leading=12)))
 
     right_cell = [
-        Paragraph("ДОКУМЕНТ", ps("dl", fontName="Helvetica-Bold", fontSize=7, textColor=INK_FAINT, alignment=TA_RIGHT)),
+        Paragraph("ДОКУМЕНТ", ps("dl", fontName=F(True), fontSize=7, textColor=INK_FAINT, alignment=TA_RIGHT)),
         Paragraph(date_str, ps("dv", fontSize=9, textColor=INK_MID, alignment=TA_RIGHT)),
     ]
 
@@ -180,16 +229,16 @@ def build_pdf(project: dict, company: dict) -> bytes:
     to_line = ", ".join(to_parts)
 
     title_left = [
-        Paragraph("КОММЕРЧЕСКОЕ ПРЕДЛОЖЕНИЕ", ps("kl", fontName="Helvetica-Bold", fontSize=7, textColor=INK_FAINT, leading=10)),
+        Paragraph("КОММЕРЧЕСКОЕ ПРЕДЛОЖЕНИЕ", ps("kl", fontName=F(True), fontSize=7, textColor=INK_FAINT, leading=10)),
         Spacer(1, 5),
-        Paragraph(project_name, ps("kv", fontName="Helvetica-Bold", fontSize=17, leading=21)),
+        Paragraph(project_name, ps("kv", fontName=F(True), fontSize=17, leading=21)),
     ]
 
     if to_line:
         title_right = [
-            Paragraph("ДЛЯ", ps("fl", fontName="Helvetica-Bold", fontSize=7, textColor=INK_FAINT, leading=10, alignment=TA_RIGHT)),
+            Paragraph("ДЛЯ", ps("fl", fontName=F(True), fontSize=7, textColor=INK_FAINT, leading=10, alignment=TA_RIGHT)),
             Spacer(1, 5),
-            Paragraph(to_line, ps("fv", fontName="Helvetica-Bold", fontSize=12, leading=15, alignment=TA_RIGHT)),
+            Paragraph(to_line, ps("fv", fontName=F(True), fontSize=12, leading=15, alignment=TA_RIGHT)),
         ]
         title_tbl = Table([[title_left, title_right]], colWidths=[usable_w * 0.6, usable_w * 0.4])
         title_tbl.setStyle(TableStyle([
@@ -214,7 +263,7 @@ def build_pdf(project: dict, company: dict) -> bytes:
     story.append(Spacer(1, 22))
 
     # ── ESTIMATE ────────────────────────────────────────────────────────────
-    story.append(Paragraph("СОСТАВ РАБОТ", ps("el", fontName="Helvetica-Bold", fontSize=7, textColor=INK_FAINT, leading=10)))
+    story.append(Paragraph("СОСТАВ РАБОТ", ps("el", fontName=F(True), fontSize=7, textColor=INK_FAINT, leading=10)))
     story.append(Spacer(1, 8))
 
     items = project.get("work_items", [])
@@ -232,13 +281,12 @@ def build_pdf(project: dict, company: dict) -> bytes:
     col_w = [c0, c1, c2, c3, c4, c5]
 
     def th(text, align=TA_CENTER):
-        return Paragraph(text, ps("th", fontName="Helvetica-Bold", fontSize=8, textColor=WHITE, alignment=align))
+        return Paragraph(text, ps("th", fontName=F(True), fontSize=8, textColor=WHITE, alignment=align))
 
     data = [[th("#"), th("Наименование", TA_CENTER), th("Кол"), th("Ед."), th("Цена", TA_RIGHT), th("Сумма", TA_RIGHT)]]
 
     def td(text, align=TA_CENTER, bold=False, color=INK_MID):
-        fn = "Helvetica-Bold" if bold else "Helvetica"
-        return Paragraph(text, ps("td", fontName=fn, fontSize=9, textColor=color, alignment=align))
+        return Paragraph(text, ps("td", fontName=F(bold), fontSize=9, textColor=color, alignment=align))
 
     for idx, item in enumerate(items, 1):
         qty = float(item["quantity"])
@@ -269,8 +317,7 @@ def build_pdf(project: dict, company: dict) -> bytes:
 
     # Итоги
     def tr(text, bold=False, color=INK_MID, size=9):
-        fn = "Helvetica-Bold" if bold else "Helvetica"
-        return Paragraph(text, ps("tr", fontName=fn, fontSize=size, textColor=color, alignment=TA_RIGHT))
+        return Paragraph(text, ps("tr", fontName=F(bold), fontSize=size, textColor=color, alignment=TA_RIGHT))
 
     tot_rows = []
     tot_rows.append(["", "", "", "", tr("Подитого"), tr(fmt_money(subtotal))])

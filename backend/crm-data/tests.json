@@ -1,0 +1,1 @@
+{"tests": [{"name": "List clients", "method": "GET", "path": "/?action=clients", "expectedStatus": 200, "expectedBody": {"ok": true}, "bodyMatcher": "partial"}, {"name": "List projects", "method": "GET", "path": "/?action=projects", "expectedStatus": 200, "expectedBody": {"ok": true}, "bodyMatcher": "partial"}]}

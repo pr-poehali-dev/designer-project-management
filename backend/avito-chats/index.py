@@ -6,6 +6,7 @@ import json
 import os
 import urllib.request
 import urllib.parse
+import urllib.error
 
 
 AVITO_AUTH_URL = "https://api.avito.ru/token"
@@ -56,13 +57,18 @@ def get_avito_token() -> str:
 
 
 def avito_get(path: str, token: str) -> dict:
+    url = f"{AVITO_API_BASE}{path}"
     req = urllib.request.Request(
-        f"{AVITO_API_BASE}{path}",
+        url,
         headers={"Authorization": f"Bearer {token}"},
         method="GET"
     )
-    with urllib.request.urlopen(req, timeout=10) as resp:
-        return json.loads(resp.read())
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            return json.loads(resp.read())
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="replace")
+        raise Exception(f"HTTP {e.code} for {url}: {body[:300]}")
 
 
 def avito_post(path: str, token: str, body: dict) -> dict:
@@ -141,7 +147,11 @@ def handler(event: dict, context) -> dict:
         if not chat_id:
             return {"statusCode": 400, "headers": CORS_HEADERS,
                     "body": json.dumps({"ok": False, "error": "chat_id required"})}
-        data = avito_get(f"/messenger/v2/accounts/{user_id}/chats/{chat_id}/messages/?limit=50", avito_token)
+        try:
+            data = avito_get(f"/messenger/v3/accounts/{user_id}/chats/{chat_id}/messages?limit=50", avito_token)
+        except Exception as e:
+            return {"statusCode": 200, "headers": CORS_HEADERS,
+                    "body": json.dumps({"ok": False, "error": f"Avito API error: {str(e)}"})}
         return {
             "statusCode": 200, "headers": CORS_HEADERS,
             "body": json.dumps({"ok": True, "messages": data.get("messages", []), "user_id": user_id})
@@ -187,7 +197,7 @@ def handler(event: dict, context) -> dict:
             try:
                 # Получаем последние 10 сообщений для контекста
                 msgs_data = avito_get(
-                    f"/messenger/v2/accounts/{user_id}/chats/{chat_id}/messages/?limit=10",
+                    f"/messenger/v3/accounts/{user_id}/chats/{chat_id}/messages?limit=10",
                     avito_token
                 )
                 msgs = msgs_data.get("messages", [])

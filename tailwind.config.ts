@@ -20,8 +20,8 @@ export default {
 		},
 		extend: {
 			fontFamily: {
-				cormorant: ['Cormorant', 'serif'],
-				plex: ['IBM Plex Sans', 'sans-serif'],
+				display: ['Montserrat', 'sans-serif'],
+				body: ['Golos Text', 'sans-serif'],
 			},
 			colors: {
 				border: 'hsl(var(--border))',
@@ -29,16 +29,16 @@ export default {
 				ring: 'hsl(var(--ring))',
 				background: 'hsl(var(--background))',
 				foreground: 'hsl(var(--foreground))',
-				gold: {
-					DEFAULT: '#C9A84C',
-					light: '#E8C96A',
-					dark: '#A0832A',
+				ink: {
+					DEFAULT: '#0A0A0A',
+					light: '#3A3A3A',
+					muted: '#6B6B6B',
+					faint: '#9A9A9A',
 				},
-				onyx: {
-					DEFAULT: '#0D0D0F',
-					light: '#141418',
-					mid: '#1C1C22',
-					border: '#2A2A35',
+				snow: {
+					DEFAULT: '#FAFAFA',
+					mid: '#F2F2F2',
+					dark: '#E8E8E8',
 				},
 				primary: {
 					DEFAULT: 'hsl(var(--primary))',
@@ -94,7 +94,7 @@ export default {
 					to: { height: '0' }
 				},
 				'fade-in': {
-					from: { opacity: '0', transform: 'translateY(24px)' },
+					from: { opacity: '0', transform: 'translateY(20px)' },
 					to: { opacity: '1', transform: 'translateY(0)' }
 				},
 				'fade-in-fast': {
@@ -102,35 +102,16 @@ export default {
 					to: { opacity: '1' }
 				},
 				'slide-up': {
-					from: { opacity: '0', transform: 'translateY(40px)' },
+					from: { opacity: '0', transform: 'translateY(32px)' },
 					to: { opacity: '1', transform: 'translateY(0)' }
 				},
-				'line-grow': {
-					from: { width: '0' },
-					to: { width: '100%' }
-				},
-				'float': {
-					'0%, 100%': { transform: 'translateY(0px)' },
-					'50%': { transform: 'translateY(-12px)' }
-				},
-				'shimmer': {
-					'0%': { backgroundPosition: '-200% 0' },
-					'100%': { backgroundPosition: '200% 0' }
-				},
-				'pulse-gold': {
-					'0%, 100%': { opacity: '1' },
-					'50%': { opacity: '0.4' }
-				}
 			},
 			animation: {
 				'accordion-down': 'accordion-down 0.2s ease-out',
 				'accordion-up': 'accordion-up 0.2s ease-out',
-				'fade-in': 'fade-in 0.8s ease-out forwards',
-				'fade-in-fast': 'fade-in-fast 0.4s ease-out forwards',
-				'slide-up': 'slide-up 0.9s ease-out forwards',
-				'float': 'float 6s ease-in-out infinite',
-				'shimmer': 'shimmer 2.5s linear infinite',
-				'pulse-gold': 'pulse-gold 2s ease-in-out infinite',
+				'fade-in': 'fade-in 0.7s ease-out forwards',
+				'fade-in-fast': 'fade-in-fast 0.3s ease-out forwards',
+				'slide-up': 'slide-up 0.8s ease-out forwards',
 			}
 		}
 	},

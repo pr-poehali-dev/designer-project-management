@@ -15,57 +15,56 @@ const maxBar = Math.max(...bars);
 
 export default function FinancePage() {
   return (
-    <div className="space-y-5 animate-fade-in">
-      {/* Cards */}
+    <div className="space-y-6 animate-fade-in">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: "Выручка этого месяца", value: "₽ 284,000", change: "+18%", icon: "TrendingUp", color: "text-green-400" },
-          { label: "Расходы", value: "₽ 48,400", change: "+5%", icon: "TrendingDown", color: "text-red-400" },
-          { label: "Прибыль", value: "₽ 235,600", change: "+22%", icon: "Wallet", color: "text-gold" },
-          { label: "Ожидается", value: "₽ 395,000", change: "2 платежа", icon: "Clock", color: "text-blue-400" },
+          { label: "Выручка", value: "₽ 284K", change: "+18%", icon: "TrendingUp", positive: true },
+          { label: "Расходы", value: "₽ 48K", change: "+5%", icon: "TrendingDown", positive: false },
+          { label: "Прибыль", value: "₽ 236K", change: "+22%", icon: "Wallet", positive: true },
+          { label: "Ожидается", value: "₽ 395K", change: "2 платежа", icon: "Clock", positive: true },
         ].map(s => (
-          <div key={s.label} className="glass rounded-sm p-5">
-            <Icon name={s.icon} fallback="Circle" size={18} className={`${s.color} mb-3`} />
-            <p className={`font-cormorant text-2xl font-light ${s.color}`}>{s.value}</p>
-            <p className="text-xs text-foreground/40 mt-1">{s.label}</p>
-            <p className="text-xs text-foreground/30 mt-0.5">{s.change}</p>
+          <div key={s.label} className="card-surface rounded-2xl p-5">
+            <div className="w-9 h-9 rounded-xl bg-snow flex items-center justify-center mb-4">
+              <Icon name={s.icon} fallback="Circle" size={16} className="text-ink-muted" />
+            </div>
+            <p className="font-display text-2xl font-semibold">{s.value}</p>
+            <p className="text-xs text-ink-faint mt-1">{s.label}</p>
+            <span className={`text-xs font-medium mt-1 inline-block ${s.positive ? "text-green-600" : "text-red-500"}`}>{s.change}</span>
           </div>
         ))}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        {/* Chart */}
-        <div className="lg:col-span-2 glass rounded-sm p-6">
-          <h3 className="font-cormorant text-lg mb-6">Выручка по месяцам</h3>
-          <div className="flex items-end gap-3 h-32">
+        <div className="lg:col-span-2 card-surface rounded-2xl p-6">
+          <h3 className="font-display font-semibold mb-6">Выручка по месяцам</h3>
+          <div className="flex items-end gap-3 h-36">
             {bars.map((h, i) => (
               <div key={i} className="flex-1 flex flex-col items-center gap-2">
                 <div
-                  className="w-full rounded-t-sm progress-gold opacity-70 hover:opacity-100 transition-opacity cursor-pointer"
+                  className="w-full bg-ink rounded-md hover:bg-ink-light transition-colors cursor-pointer"
                   style={{ height: `${(h / maxBar) * 100}%` }}
                 />
-                <span className="text-[10px] text-foreground/40">{months[i]}</span>
+                <span className="text-[10px] text-ink-faint">{months[i]}</span>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Breakdown */}
-        <div className="glass rounded-sm p-6">
-          <h3 className="font-cormorant text-lg mb-5">Структура</h3>
+        <div className="card-surface rounded-2xl p-6">
+          <h3 className="font-display font-semibold mb-5">Структура</h3>
           <div className="space-y-4">
             {[
-              { label: "Брендинг", pct: 45, color: "bg-gold" },
-              { label: "UI/UX", pct: 30, color: "bg-blue-400" },
-              { label: "Графика", pct: 15, color: "bg-green-400" },
-              { label: "Моушн", pct: 10, color: "bg-orange-400" },
+              { label: "Брендинг", pct: 45, color: "bg-ink" },
+              { label: "UI/UX", pct: 30, color: "bg-blue-500" },
+              { label: "Графика", pct: 15, color: "bg-green-500" },
+              { label: "Моушн", pct: 10, color: "bg-amber-500" },
             ].map(({ label, pct, color }) => (
               <div key={label}>
                 <div className="flex justify-between text-xs mb-1.5">
-                  <span className="text-foreground/60">{label}</span>
-                  <span className="text-foreground/40">{pct}%</span>
+                  <span className="text-ink-muted">{label}</span>
+                  <span className="text-ink-faint">{pct}%</span>
                 </div>
-                <div className="h-1 bg-onyx-border rounded-full overflow-hidden">
+                <div className="h-1 bg-snow-dark rounded-full overflow-hidden">
                   <div className={`h-full ${color} rounded-full`} style={{ width: `${pct}%` }} />
                 </div>
               </div>
@@ -74,25 +73,24 @@ export default function FinancePage() {
         </div>
       </div>
 
-      {/* Transactions */}
-      <div className="glass rounded-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-onyx-border">
-          <h3 className="font-cormorant text-lg">Последние операции</h3>
+      <div className="card-surface rounded-2xl overflow-hidden">
+        <div className="px-6 py-4 border-b border-snow-dark">
+          <h3 className="font-display font-semibold">Последние операции</h3>
         </div>
-        <div className="divide-y divide-onyx-border">
+        <div className="divide-y divide-snow-dark">
           {transactions.map((t, i) => (
-            <div key={i} className="px-6 py-4 flex items-center justify-between hover:bg-onyx-mid/30 transition-colors">
+            <div key={i} className="px-6 py-4 flex items-center justify-between hover:bg-snow/50 transition-colors">
               <div className="flex items-center gap-3">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${t.type === "income" ? "bg-green-400/10" : "bg-red-400/10"}`}>
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${t.type === "income" ? "bg-green-50" : "bg-red-50"}`}>
                   <Icon name={t.type === "income" ? "ArrowDownLeft" : "ArrowUpRight"} size={14}
-                    className={t.type === "income" ? "text-green-400" : "text-red-400"} />
+                    className={t.type === "income" ? "text-green-600" : "text-red-500"} />
                 </div>
                 <div>
                   <p className="text-sm">{t.name}</p>
-                  <p className="text-xs text-foreground/40">{t.date}</p>
+                  <p className="text-xs text-ink-faint">{t.date}</p>
                 </div>
               </div>
-              <span className={`font-cormorant text-lg font-medium ${t.type === "income" ? "text-green-400" : "text-red-400"}`}>
+              <span className={`font-display text-base font-semibold ${t.type === "income" ? "text-green-600" : "text-red-500"}`}>
                 {t.amount}
               </span>
             </div>

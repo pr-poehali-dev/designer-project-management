@@ -4,34 +4,34 @@
 
 @layer base {
   :root {
-    --background: 240 8% 5%;
-    --foreground: 45 20% 92%;
-    --card: 240 8% 8%;
-    --card-foreground: 45 20% 92%;
-    --popover: 240 8% 8%;
-    --popover-foreground: 45 20% 92%;
-    --primary: 43 52% 55%;
-    --primary-foreground: 0 0% 5%;
-    --secondary: 240 6% 14%;
-    --secondary-foreground: 45 20% 85%;
-    --muted: 240 6% 14%;
-    --muted-foreground: 240 5% 55%;
-    --accent: 43 52% 55%;
-    --accent-foreground: 0 0% 5%;
-    --destructive: 0 62% 50%;
+    --background: 0 0% 100%;
+    --foreground: 0 0% 4%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 4%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 4%;
+    --primary: 0 0% 4%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 0 0% 96%;
+    --secondary-foreground: 0 0% 4%;
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 45%;
+    --accent: 0 0% 96%;
+    --accent-foreground: 0 0% 4%;
+    --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 98%;
-    --border: 240 6% 18%;
-    --input: 240 6% 14%;
-    --ring: 43 52% 55%;
-    --radius: 0.5rem;
-    --sidebar-background: 240 8% 7%;
-    --sidebar-foreground: 45 20% 85%;
-    --sidebar-primary: 43 52% 55%;
-    --sidebar-primary-foreground: 0 0% 5%;
-    --sidebar-accent: 240 6% 12%;
-    --sidebar-accent-foreground: 45 20% 85%;
-    --sidebar-border: 240 6% 16%;
-    --sidebar-ring: 43 52% 55%;
+    --border: 0 0% 91%;
+    --input: 0 0% 91%;
+    --ring: 0 0% 4%;
+    --radius: 0.75rem;
+    --sidebar-background: 0 0% 99%;
+    --sidebar-foreground: 0 0% 4%;
+    --sidebar-primary: 0 0% 4%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 0 0% 96%;
+    --sidebar-accent-foreground: 0 0% 4%;
+    --sidebar-border: 0 0% 92%;
+    --sidebar-ring: 0 0% 4%;
   }
 }
 
@@ -40,126 +40,80 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
-    font-family: "IBM Plex Sans", sans-serif;
+    @apply bg-background text-foreground antialiased;
+    font-family: "Golos Text", sans-serif;
   }
 }
 
-/* Scrollbar */
 ::-webkit-scrollbar {
-  width: 4px;
+  width: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #0d0d0f;
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(201, 168, 76, 0.25);
-  border-radius: 2px;
+  background: #d4d4d4;
+  border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(201, 168, 76, 0.5);
+  background: #a3a3a3;
 }
 
-/* Gold shimmer text */
-.text-shimmer {
-  background: linear-gradient(
-    90deg,
-    #c9a84c 0%,
-    #e8c96a 40%,
-    #fff8e7 50%,
-    #e8c96a 60%,
-    #c9a84c 100%
-  );
-  background-size: 200% auto;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  animation: shimmer 3s linear infinite;
-}
-
-/* Glass card */
-.glass {
-  background: rgba(28, 28, 34, 0.6);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(201, 168, 76, 0.12);
-}
-.glass-hover {
-  transition: all 0.3s ease;
-}
-.glass-hover:hover {
-  background: rgba(28, 28, 34, 0.85);
-  border-color: rgba(201, 168, 76, 0.3);
-  transform: translateY(-2px);
-}
-
-/* Nav gold underline */
-.nav-link-gold {
-  position: relative;
-}
-.nav-link-gold::after {
-  content: "";
-  position: absolute;
-  bottom: -2px;
-  left: 0;
-  width: 0;
-  height: 1px;
-  background: #c9a84c;
-  transition: width 0.3s ease;
-}
-.nav-link-gold:hover::after {
-  width: 100%;
-}
-
-/* Stagger animations */
 .stagger-1 {
   animation-delay: 0.1s;
   opacity: 0;
 }
 .stagger-2 {
-  animation-delay: 0.25s;
+  animation-delay: 0.2s;
   opacity: 0;
 }
 .stagger-3 {
-  animation-delay: 0.4s;
+  animation-delay: 0.35s;
   opacity: 0;
 }
 .stagger-4 {
-  animation-delay: 0.55s;
+  animation-delay: 0.5s;
   opacity: 0;
 }
 .stagger-5 {
-  animation-delay: 0.7s;
+  animation-delay: 0.65s;
   opacity: 0;
 }
 
-/* CRM sidebar item */
-.sidebar-item {
-  transition: all 0.2s ease;
-  position: relative;
-}
-.sidebar-item::before {
+.nav-link::after {
   content: "";
   position: absolute;
+  bottom: -2px;
   left: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 2px;
-  height: 0;
-  background: #c9a84c;
-  transition: height 0.2s ease;
-  border-radius: 0 2px 2px 0;
+  width: 0;
+  height: 1.5px;
+  background: #0a0a0a;
+  transition: width 0.3s ease;
 }
-.sidebar-item.active::before,
-.sidebar-item:hover::before {
-  height: 60%;
-}
-.sidebar-item.active {
-  background: rgba(201, 168, 76, 0.08);
-  color: #c9a84c;
+.nav-link:hover::after {
+  width: 100%;
 }
 
-/* Progress bar */
-.progress-gold {
-  background: linear-gradient(90deg, #c9a84c, #e8c96a);
+.sidebar-item {
+  transition: all 0.15s ease;
+}
+.sidebar-item.active {
+  background: hsl(0 0% 96%);
+  color: #0a0a0a;
+  font-weight: 500;
+}
+
+.card-surface {
+  background: #fff;
+  border: 1px solid #e8e8e8;
+  transition: all 0.2s ease;
+}
+.card-surface:hover {
+  border-color: #d4d4d4;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04);
+}
+
+.progress-bar {
+  background: #0a0a0a;
+  border-radius: 999px;
 }

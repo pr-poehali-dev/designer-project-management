@@ -8,48 +8,48 @@ const contracts = [
   { id: "ДГ-2024-005", name: "Orbis Motion Kit", client: "Orbis Media", sum: "₽ 120,000", date: "20.03.2024", status: "Приостановлен" },
 ];
 
-const statusConf: Record<string, string> = {
-  "Подписан": "text-green-400 bg-green-400/10",
-  "Выполнен": "text-foreground/50 bg-foreground/5",
-  "На согласовании": "text-gold bg-gold/10",
-  "Приостановлен": "text-orange-400 bg-orange-400/10",
+const statusStyle: Record<string, string> = {
+  "Подписан": "bg-green-50 text-green-600",
+  "Выполнен": "bg-gray-100 text-ink-faint",
+  "На согласовании": "bg-amber-50 text-amber-600",
+  "Приостановлен": "bg-orange-50 text-orange-500",
 };
 
 export default function ContractsPage() {
   return (
     <div className="space-y-5 animate-fade-in">
       <div className="flex items-center justify-between">
-        <div className="text-sm text-foreground/50">Всего договоров: <span className="text-foreground">{contracts.length}</span></div>
-        <button className="flex items-center gap-2 px-4 py-2 bg-gold/10 border border-gold/30 text-gold text-sm rounded-sm hover:bg-gold hover:text-onyx transition-all">
+        <p className="text-sm text-ink-muted">Всего: <span className="text-ink font-medium">{contracts.length}</span></p>
+        <button className="h-9 px-5 bg-ink text-white text-sm font-medium rounded-full hover:bg-ink-light transition-colors flex items-center gap-2">
           <Icon name="Plus" size={14} />
           Новый договор
         </button>
       </div>
 
-      <div className="glass rounded-sm overflow-hidden">
+      <div className="card-surface rounded-2xl overflow-hidden">
         <table className="w-full">
           <thead>
-            <tr className="border-b border-onyx-border">
+            <tr className="border-b border-snow-dark">
               {["Номер", "Проект", "Клиент", "Сумма", "Дата", "Статус", ""].map(h => (
-                <th key={h} className="text-left px-5 py-3 text-xs text-foreground/40 font-normal">{h}</th>
+                <th key={h} className="text-left px-5 py-3 text-xs text-ink-faint font-medium">{h}</th>
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-onyx-border">
+          <tbody className="divide-y divide-snow-dark">
             {contracts.map(c => (
-              <tr key={c.id} className="hover:bg-onyx-mid/40 transition-colors cursor-pointer">
-                <td className="px-5 py-4 text-xs text-foreground/50 font-mono">{c.id}</td>
-                <td className="px-5 py-4 text-sm">{c.name}</td>
-                <td className="px-5 py-4 text-sm text-foreground/60">{c.client}</td>
-                <td className="px-5 py-4 font-cormorant text-base text-gold">{c.sum}</td>
-                <td className="px-5 py-4 text-sm text-foreground/50">{c.date}</td>
+              <tr key={c.id} className="hover:bg-snow/50 transition-colors cursor-pointer">
+                <td className="px-5 py-4 text-xs text-ink-faint font-mono">{c.id}</td>
+                <td className="px-5 py-4 text-sm font-medium">{c.name}</td>
+                <td className="px-5 py-4 text-sm text-ink-muted">{c.client}</td>
+                <td className="px-5 py-4 font-display font-semibold">{c.sum}</td>
+                <td className="px-5 py-4 text-sm text-ink-muted">{c.date}</td>
                 <td className="px-5 py-4">
-                  <span className={`text-xs px-2 py-1 rounded-sm ${statusConf[c.status]}`}>{c.status}</span>
+                  <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${statusStyle[c.status]}`}>{c.status}</span>
                 </td>
                 <td className="px-5 py-4">
-                  <div className="flex items-center gap-2 text-foreground/30">
-                    <button className="hover:text-foreground transition-colors"><Icon name="Download" size={14} /></button>
-                    <button className="hover:text-gold transition-colors"><Icon name="Eye" size={14} /></button>
+                  <div className="flex items-center gap-2 text-ink-faint">
+                    <button className="hover:text-ink transition-colors"><Icon name="Download" size={14} /></button>
+                    <button className="hover:text-ink transition-colors"><Icon name="Eye" size={14} /></button>
                   </div>
                 </td>
               </tr>

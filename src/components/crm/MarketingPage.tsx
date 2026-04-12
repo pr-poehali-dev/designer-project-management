@@ -13,23 +13,15 @@ const ideas = [
   "Telegram-канал: закулисье студии",
 ];
 
-const statusConf: Record<string, string> = {
-  "Активна": "text-green-400 bg-green-400/10",
-  "Завершена": "text-foreground/50 bg-foreground/5",
-  "Пауза": "text-orange-400 bg-orange-400/10",
-};
-
-const channelIcon: Record<string, string> = {
-  "Behance": "Globe",
-  "Instagram": "Camera",
-  "VC.ru": "FileText",
-  "ВКонтакте": "Share2",
+const statusStyle: Record<string, string> = {
+  "Активна": "bg-green-50 text-green-600",
+  "Завершена": "bg-gray-100 text-ink-faint",
+  "Пауза": "bg-amber-50 text-amber-600",
 };
 
 export default function MarketingPage() {
   return (
-    <div className="space-y-5 animate-fade-in">
-      {/* Stats row */}
+    <div className="space-y-6 animate-fade-in">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label: "Охват за месяц", value: "77K", icon: "Eye" },
@@ -37,60 +29,55 @@ export default function MarketingPage() {
           { label: "Конверсия", value: "2.4%", icon: "TrendingUp" },
           { label: "Кампаний", value: "4", icon: "Megaphone" },
         ].map(s => (
-          <div key={s.label} className="glass rounded-sm p-5">
-            <Icon name={s.icon} fallback="Circle" size={18} className="text-gold mb-3" />
-            <p className="font-cormorant text-3xl text-gold">{s.value}</p>
-            <p className="text-xs text-foreground/40 mt-1">{s.label}</p>
+          <div key={s.label} className="card-surface rounded-2xl p-5">
+            <div className="w-9 h-9 rounded-xl bg-snow flex items-center justify-center mb-4">
+              <Icon name={s.icon} fallback="Circle" size={16} className="text-ink-muted" />
+            </div>
+            <p className="font-display text-3xl font-semibold">{s.value}</p>
+            <p className="text-xs text-ink-faint mt-1">{s.label}</p>
           </div>
         ))}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        {/* Campaigns */}
-        <div className="lg:col-span-2 glass rounded-sm overflow-hidden">
-          <div className="flex items-center justify-between px-6 py-4 border-b border-onyx-border">
-            <h3 className="font-cormorant text-lg">Кампании</h3>
-            <button className="text-xs text-gold hover:text-gold-light">+ Новая</button>
+        <div className="lg:col-span-2 card-surface rounded-2xl overflow-hidden">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-snow-dark">
+            <h3 className="font-display font-semibold">Кампании</h3>
+            <button className="text-xs text-ink-muted hover:text-ink font-medium">+ Новая</button>
           </div>
-          <div className="divide-y divide-onyx-border">
+          <div className="divide-y divide-snow-dark">
             {campaigns.map(c => (
-              <div key={c.name} className="px-6 py-4 flex items-center justify-between hover:bg-onyx-mid/30 transition-colors">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-onyx-mid border border-onyx-border flex items-center justify-center">
-                    <Icon name={channelIcon[c.channel] || "Globe"} fallback="Globe" size={14} className="text-gold/60" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">{c.name}</p>
-                    <p className="text-xs text-foreground/40">{c.channel}</p>
-                  </div>
+              <div key={c.name} className="px-6 py-4 flex items-center justify-between hover:bg-snow/50 transition-colors">
+                <div>
+                  <p className="text-sm font-medium">{c.name}</p>
+                  <p className="text-xs text-ink-faint">{c.channel}</p>
                 </div>
                 <div className="flex items-center gap-6 text-sm">
                   <div className="text-right">
-                    <p className="text-foreground/70">{c.reach}</p>
-                    <p className="text-xs text-foreground/30">охват</p>
+                    <p className="font-medium">{c.reach}</p>
+                    <p className="text-xs text-ink-faint">охват</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-gold">{c.leads}</p>
-                    <p className="text-xs text-foreground/30">лидов</p>
+                    <p className="font-medium">{c.leads}</p>
+                    <p className="text-xs text-ink-faint">лидов</p>
                   </div>
-                  <span className={`text-xs px-2 py-0.5 rounded-sm ${statusConf[c.status]}`}>{c.status}</span>
+                  <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${statusStyle[c.status]}`}>{c.status}</span>
                 </div>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Ideas */}
-        <div className="glass rounded-sm p-6">
-          <h3 className="font-cormorant text-lg mb-5">Идеи контента</h3>
+        <div className="card-surface rounded-2xl p-6">
+          <h3 className="font-display font-semibold mb-5">Идеи контента</h3>
           <div className="space-y-3">
             {ideas.map((idea, i) => (
-              <div key={i} className="flex items-start gap-3 p-3 bg-onyx-mid rounded-sm">
-                <div className="w-1.5 h-1.5 rounded-full bg-gold mt-2 shrink-0" />
-                <p className="text-sm text-foreground/70">{idea}</p>
+              <div key={i} className="flex items-start gap-3 p-3 bg-snow rounded-xl">
+                <div className="w-1.5 h-1.5 rounded-full bg-ink mt-2 shrink-0" />
+                <p className="text-sm text-ink-light">{idea}</p>
               </div>
             ))}
-            <button className="w-full text-xs text-foreground/30 hover:text-gold transition-colors py-2 border border-dashed border-onyx-border rounded-sm mt-2">
+            <button className="w-full text-xs text-ink-faint hover:text-ink transition-colors py-3 border border-dashed border-snow-dark rounded-xl mt-1 font-medium">
               + Добавить идею
             </button>
           </div>

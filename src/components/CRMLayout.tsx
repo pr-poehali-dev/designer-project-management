@@ -43,33 +43,28 @@ export default function CRMLayout({ onLogout }: Props) {
   };
 
   return (
-    <div className="flex h-screen bg-onyx overflow-hidden">
+    <div className="flex h-screen bg-snow font-body overflow-hidden">
       {/* Sidebar */}
-      <aside
-        className={`flex flex-col border-r border-onyx-border transition-all duration-300 ${collapsed ? "w-16" : "w-60"}`}
-        style={{ background: 'hsl(var(--sidebar-background))' }}
-      >
-        {/* Logo */}
-        <div className="flex items-center justify-between px-4 py-5 border-b border-onyx-border">
+      <aside className={`flex flex-col bg-white border-r border-snow-dark transition-all duration-300 ${collapsed ? "w-16" : "w-56"}`}>
+        <div className="flex items-center justify-between px-4 h-16 border-b border-snow-dark">
           {!collapsed && (
-            <span className="font-cormorant text-xl font-semibold text-gold tracking-widest">АРЕНА</span>
+            <span className="font-display text-lg font-bold tracking-tight">Арена</span>
           )}
           <button
             onClick={() => setCollapsed(!collapsed)}
-            className="text-foreground/30 hover:text-foreground transition-colors ml-auto"
+            className="text-ink-faint hover:text-ink transition-colors ml-auto"
           >
             <Icon name={collapsed ? "PanelLeftOpen" : "PanelLeftClose"} size={16} />
           </button>
         </div>
 
-        {/* Nav */}
-        <nav className="flex-1 py-4 overflow-y-auto">
+        <nav className="flex-1 py-2 px-2 overflow-y-auto">
           {NAV_ITEMS.map(item => (
             <button
               key={item.id}
               onClick={() => setActive(item.id)}
-              className={`sidebar-item w-full flex items-center gap-3 px-4 py-3 text-sm transition-all ${
-                active === item.id ? "active" : "text-foreground/50 hover:text-foreground"
+              className={`sidebar-item w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-lg mb-0.5 ${
+                active === item.id ? "active" : "text-ink-muted hover:text-ink hover:bg-snow"
               }`}
             >
               <Icon name={item.icon} fallback="Circle" size={16} className="shrink-0" />
@@ -78,22 +73,21 @@ export default function CRMLayout({ onLogout }: Props) {
           ))}
         </nav>
 
-        {/* User */}
-        <div className="border-t border-onyx-border p-4">
+        <div className="border-t border-snow-dark p-3">
           {collapsed ? (
-            <button onClick={onLogout} className="text-foreground/30 hover:text-foreground transition-colors">
+            <button onClick={onLogout} className="text-ink-faint hover:text-ink transition-colors mx-auto block">
               <Icon name="LogOut" size={16} />
             </button>
           ) : (
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-gold/20 border border-gold/30 flex items-center justify-center">
-                <span className="text-gold text-xs font-semibold">А</span>
+              <div className="w-8 h-8 rounded-full bg-ink flex items-center justify-center shrink-0">
+                <span className="text-white text-xs font-semibold">А</span>
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-foreground truncate">Алексей Иванов</p>
-                <p className="text-xs text-foreground/40">Дизайнер</p>
+                <p className="text-xs font-medium truncate">Алексей Иванов</p>
+                <p className="text-xs text-ink-faint">Дизайнер</p>
               </div>
-              <button onClick={onLogout} className="text-foreground/30 hover:text-foreground transition-colors">
+              <button onClick={onLogout} className="text-ink-faint hover:text-ink transition-colors">
                 <Icon name="LogOut" size={14} />
               </button>
             </div>
@@ -103,20 +97,16 @@ export default function CRMLayout({ onLogout }: Props) {
 
       {/* Main */}
       <main className="flex-1 overflow-y-auto">
-        {/* Top bar */}
-        <div className="sticky top-0 z-10 flex items-center justify-between px-8 py-4 border-b border-onyx-border"
-          style={{ background: 'rgba(13,13,15,0.9)', backdropFilter: 'blur(12px)' }}>
-          <div>
-            <h1 className="font-cormorant text-xl font-medium">
-              {NAV_ITEMS.find(n => n.id === active)?.label}
-            </h1>
-          </div>
+        <div className="sticky top-0 z-10 flex items-center justify-between px-8 h-16 bg-white/80 backdrop-blur-lg border-b border-snow-dark">
+          <h1 className="font-display text-lg font-semibold tracking-tight">
+            {NAV_ITEMS.find(n => n.id === active)?.label}
+          </h1>
           <div className="flex items-center gap-3">
-            <button className="relative text-foreground/40 hover:text-foreground transition-colors">
+            <button className="relative text-ink-faint hover:text-ink transition-colors">
               <Icon name="Bell" size={18} />
-              <span className="absolute -top-1 -right-1 w-2 h-2 bg-gold rounded-full" />
+              <span className="absolute -top-1 -right-1 w-2 h-2 bg-ink rounded-full" />
             </button>
-            <button className="px-4 py-1.5 bg-gold/10 border border-gold/30 text-gold text-xs hover:bg-gold hover:text-onyx transition-all duration-300 rounded-sm">
+            <button className="h-9 px-5 bg-ink text-white text-sm font-medium rounded-full hover:bg-ink-light transition-colors">
               + Новый проект
             </button>
           </div>

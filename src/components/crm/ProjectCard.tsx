@@ -1,14 +1,12 @@
 import { useState, useEffect, useCallback } from "react";
 import Icon from "@/components/ui/icon";
+import EstimateTable from "./EstimateTable";
 
 const API = "https://functions.poehali.dev/21fcd16a-d247-4b03-8505-0be9497f8386";
 
 interface ProjectData {
   id: number; name: string; client_id: number | null; client_name: string;
   status: string; deadline: string; discount_percent: number;
-}
-interface WorkItem {
-  id: number; name: string; quantity: number; unit: string; price: number; sort_order: number;
 }
 interface TeamMember { id: number; member_name: string; role: string; }
 interface ClientShort { id: number; name: string; }
@@ -25,17 +23,12 @@ const STATUS_OPTIONS = [
 export default function ProjectCard({ projectId, onBack }: { projectId: number; onBack: () => void }) {
   const [tab, setTab] = useState<Tab>("estimate");
   const [project, setProject] = useState<ProjectData | null>(null);
-  const [items, setItems] = useState<WorkItem[]>([]);
   const [team, setTeam] = useState<TeamMember[]>([]);
   const [clients, setClients] = useState<ClientShort[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savedProject, setSavedProject] = useState("");
   const [status, setStatus] = useState<"idle" | "saved" | "error">("idle");
-
-  const [newItem, setNewItem] = useState({ name: "", quantity: "1", unit: "шт", price: "0" });
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [editItem, setEditItem] = useState({ name: "", quantity: "", unit: "", price: "" });
 
   const [newMember, setNewMember] = useState({ member_name: "", role: "" });
 
@@ -48,7 +41,6 @@ export default function ProjectCard({ projectId, onBack }: { projectId: number; 
       if (pr.ok) {
         setProject(pr.project);
         setSavedProject(JSON.stringify(pr.project));
-        setItems((pr.work_items || []).filter((i: WorkItem) => i.sort_order >= 0));
         setTeam(pr.team || []);
       }
       if (cl.ok) setClients(cl.clients || []);
@@ -75,49 +67,6 @@ export default function ProjectCard({ projectId, onBack }: { projectId: number; 
     } catch { /* ignore */ setStatus("error"); } finally { setSaving(false); }
   };
 
-  const addItem = async () => {
-    if (!newItem.name.trim()) return;
-    try {
-      await fetch(`${API}?action=work_items`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          project_id: projectId, name: newItem.name,
-          quantity: parseFloat(newItem.quantity) || 1,
-          unit: newItem.unit || "шт",
-          price: parseFloat(newItem.price) || 0,
-        }),
-      });
-      setNewItem({ name: "", quantity: "1", unit: "шт", price: "0" });
-      load();
-    } catch { /* ignore */ }
-  };
-
-  const updateItem = async (id: number) => {
-    try {
-      await fetch(`${API}?action=work_items&id=${id}`, {
-        method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: editItem.name,
-          quantity: parseFloat(editItem.quantity) || 1,
-          unit: editItem.unit,
-          price: parseFloat(editItem.price) || 0,
-        }),
-      });
-      setEditingId(null);
-      load();
-    } catch { /* ignore */ }
-  };
-
-  const removeItem = async (id: number) => {
-    try {
-      await fetch(`${API}?action=work_items&id=${id}&delete=true`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: "{}",
-      });
-      load();
-    } catch { /* ignore */ }
-  };
-
   const addMember = async () => {
     if (!newMember.member_name.trim()) return;
     try {
@@ -130,11 +79,6 @@ export default function ProjectCard({ projectId, onBack }: { projectId: number; 
     } catch { /* ignore */ }
   };
 
-  const startEdit = (item: WorkItem) => {
-    setEditingId(item.id);
-    setEditItem({ name: item.name, quantity: String(item.quantity), unit: item.unit, price: String(item.price) });
-  };
-
   if (loading) {
     return <div className="flex justify-center py-20"><div className="w-5 h-5 border-2 border-ink/20 border-t-ink rounded-full animate-spin" /></div>;
   }
@@ -143,9 +87,6 @@ export default function ProjectCard({ projectId, onBack }: { projectId: number; 
       <button onClick={onBack} className="text-sm text-ink font-medium hover:underline mt-2">Назад</button></div>;
   }
 
-  const subtotal = items.reduce((s, i) => s + i.quantity * i.price, 0);
-  const discount = subtotal * (project.discount_percent || 0) / 100;
-  const total = subtotal - discount;
   const hasProjectChanges = project && JSON.stringify(project) !== savedProject;
 
   return (

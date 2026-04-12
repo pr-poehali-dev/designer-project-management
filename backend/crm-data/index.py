@@ -216,6 +216,70 @@ def handle_team(method, params, body):
         conn.close()
 
 
+def handle_reorder(method, params, body):
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        ids = body.get("ids", [])
+        for i, item_id in enumerate(ids):
+            cur.execute("UPDATE work_items SET sort_order = %s WHERE id = %s", (i, item_id))
+        conn.commit()
+        return json_resp({"ok": True})
+    finally:
+        conn.close()
+
+
+def handle_templates(method, params, body):
+    conn = get_db()
+    try:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        template_id = params.get("id")
+
+        if method == "GET" and not template_id:
+            cur.execute("SELECT t.*, (SELECT count(*) FROM estimate_template_items i WHERE i.template_id = t.id) as item_count FROM estimate_templates t ORDER BY t.created_at DESC")
+            return json_resp({"ok": True, "templates": [dict(r) for r in cur.fetchall()]})
+
+        if method == "GET" and template_id:
+            cur.execute("SELECT * FROM estimate_templates WHERE id = %s", (template_id,))
+            tpl = cur.fetchone()
+            if not tpl:
+                return json_resp({"ok": False, "error": "Not found"}, 404)
+            cur.execute("SELECT * FROM estimate_template_items WHERE template_id = %s ORDER BY sort_order, id", (template_id,))
+            items = [dict(r) for r in cur.fetchall()]
+            return json_resp({"ok": True, "template": dict(tpl), "items": items})
+
+        if method == "POST" and not template_id:
+            name = body.get("name", "Новый шаблон")
+            items = body.get("items", [])
+            cur.execute("INSERT INTO estimate_templates (name) VALUES (%s) RETURNING id", (name,))
+            tpl_id = cur.fetchone()["id"]
+            for i, item in enumerate(items):
+                cur.execute(
+                    "INSERT INTO estimate_template_items (template_id, name, quantity, unit, price, sort_order) VALUES (%s,%s,%s,%s,%s,%s)",
+                    (tpl_id, item.get("name", ""), item.get("quantity", 1), item.get("unit", "шт"), item.get("price", 0), i)
+                )
+            conn.commit()
+            return json_resp({"ok": True, "id": tpl_id})
+
+        if method == "POST" and template_id and params.get("apply") == "true":
+            project_id = body.get("project_id")
+            if not project_id:
+                return json_resp({"ok": False, "error": "project_id required"}, 400)
+            cur.execute("SELECT * FROM estimate_template_items WHERE template_id = %s ORDER BY sort_order, id", (template_id,))
+            tpl_items = cur.fetchall()
+            cur.execute("SELECT COALESCE(MAX(sort_order), -1) + 1 as next_sort FROM work_items WHERE project_id = %s AND sort_order >= 0", (project_id,))
+            next_sort = cur.fetchone()["next_sort"]
+            for i, item in enumerate(tpl_items):
+                cur.execute(
+                    "INSERT INTO work_items (project_id, name, quantity, unit, price, sort_order) VALUES (%s,%s,%s,%s,%s,%s)",
+                    (project_id, item["name"], item["quantity"], item["unit"], item["price"], next_sort + i)
+                )
+            conn.commit()
+            return json_resp({"ok": True, "added": len(tpl_items)})
+    finally:
+        conn.close()
+
+
 def handle_clients_list_short(method, params, body):
     conn = get_db()
     try:
@@ -250,5 +314,9 @@ def handler(event: dict, context) -> dict:
         return handle_notes(method, params, body)
     elif action == "team":
         return handle_team(method, params, body)
+    elif action == "reorder":
+        return handle_reorder(method, params, body)
+    elif action == "templates":
+        return handle_templates(method, params, body)
 
     return json_resp({"ok": False, "error": f"Unknown action: {action}"}, 400)

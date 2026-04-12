@@ -5,7 +5,6 @@ import ProjectChat from "./ProjectChat";
 
 const API = "https://functions.poehali.dev/21fcd16a-d247-4b03-8505-0be9497f8386";
 const PDF_API = "https://functions.poehali.dev/79538cf9-12ec-42f3-9e60-aaf7a9edfba2";
-const AVITO_API = "https://functions.poehali.dev/976899aa-03a4-4f5c-9700-e57aa8f2113a";
 
 interface ProjectData {
   id: number; name: string; client_id: number | null; client_name: string;
@@ -38,7 +37,6 @@ export default function ProjectCard({ projectId, onBack }: { projectId: number; 
   const [showKpModal, setShowKpModal] = useState(false);
   const [kpStyle, setKpStyle] = useState("corporate");
   const [kpIntro, setKpIntro] = useState("");
-  const [sendChatId, setSendChatId] = useState("");
   const [sending, setSending] = useState(false);
   const [sendStatus, setSendStatus] = useState<"idle" | "ok" | "error">("idle");
 
@@ -104,15 +102,19 @@ export default function ProjectCard({ projectId, onBack }: { projectId: number; 
     } catch { /* ignore */ } finally { setGeneratingPdf(false); }
   };
 
-  const sendToAvito = async () => {
-    if (!sendChatId.trim() || !pdfUrl) return;
+  const sendToProjectChat = async () => {
+    if (!pdfUrl) return;
     setSending(true);
     setSendStatus("idle");
     try {
+      const chatR = await fetch(`${API}?action=project_chat&project_id=${projectId}`);
+      const chatData = await chatR.json();
+      if (!chatData.ok) { setSendStatus("error"); return; }
+      const chatId = chatData.chat.id;
       const msg = `Коммерческое предложение по проекту «${project?.name || ""}»:\n${pdfUrl}`;
-      const r = await fetch(`${AVITO_API}?action=send`, {
+      const r = await fetch(`${API}?action=project_chat&sub=message`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chat_id: sendChatId.trim(), message: msg }),
+        body: JSON.stringify({ chat_id: chatId, text: msg, author_name: "Система", author_role: "manager" }),
       });
       const data = await r.json();
       setSendStatus(data.ok ? "ok" : "error");
@@ -231,19 +233,13 @@ export default function ProjectCard({ projectId, onBack }: { projectId: number; 
                   </button>
                 </div>
 
-                <div className="border border-snow-dark rounded-xl p-4 space-y-3">
-                  <p className="text-xs font-semibold text-ink-muted">Отправить в чат Авито</p>
-                  <input value={sendChatId} onChange={e => setSendChatId(e.target.value)}
-                    placeholder="ID чата..."
-                    className="w-full bg-snow border border-snow-dark rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ink/10" />
-                  <button onClick={sendToAvito} disabled={sending || !sendChatId.trim()}
-                    className="w-full py-2.5 bg-snow border border-snow-dark text-sm font-medium rounded-xl hover:bg-snow-dark transition-colors disabled:opacity-40 flex items-center justify-center gap-2">
-                    {sending ? <div className="w-4 h-4 border-2 border-ink/20 border-t-ink rounded-full animate-spin" /> : <Icon name="Send" size={14} />}
-                    {sending ? "Отправляю..." : "Отправить"}
-                  </button>
-                  {sendStatus === "ok" && <p className="text-xs text-green-600 flex items-center gap-1"><Icon name="Check" size={12} /> Отправлено!</p>}
-                  {sendStatus === "error" && <p className="text-xs text-red-500 flex items-center gap-1"><Icon name="AlertCircle" size={12} /> Ошибка</p>}
-                </div>
+                <button onClick={sendToProjectChat} disabled={sending}
+                  className="w-full py-2.5 border border-snow-dark text-sm font-medium rounded-xl hover:bg-snow transition-colors disabled:opacity-40 flex items-center justify-center gap-2">
+                  {sending ? <div className="w-4 h-4 border-2 border-ink/20 border-t-ink rounded-full animate-spin" /> : <Icon name="MessageSquare" size={14} />}
+                  {sending ? "Отправляю..." : "Отправить в чат проекта"}
+                </button>
+                {sendStatus === "ok" && <p className="text-xs text-green-600 flex items-center gap-1"><Icon name="Check" size={12} /> Отправлено в чат проекта</p>}
+                {sendStatus === "error" && <p className="text-xs text-red-500 flex items-center gap-1"><Icon name="AlertCircle" size={12} /> Ошибка отправки</p>}
               </div>
             )}
           </div>

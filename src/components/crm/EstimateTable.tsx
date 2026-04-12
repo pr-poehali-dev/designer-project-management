@@ -17,7 +17,7 @@ export default function EstimateTable({ projectId, discountPercent }: {
   const [savingTemplate, setSavingTemplate] = useState(false);
   const [templateName, setTemplateName] = useState("");
   const [showSaveAs, setShowSaveAs] = useState(false);
-  const [newItem, setNewItem] = useState({ name: "", quantity: "1", unit: "шт", price: "0" });
+  const [newName, setNewName] = useState("");
   const dragItem = useRef<number | null>(null);
   const dragOver = useRef<number | null>(null);
   const saveTimers = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
@@ -27,7 +27,7 @@ export default function EstimateTable({ projectId, discountPercent }: {
       const r = await fetch(`${API}?action=projects&id=${projectId}`);
       const data = await r.json();
       if (data.ok) {
-        setItems((data.work_items || []).filter((i: WorkItem) => i.sort_order >= 0));
+        setItems(data.work_items || []);
       }
     } catch { /* ignore */ }
   }, [projectId]);
@@ -53,8 +53,9 @@ export default function EstimateTable({ projectId, discountPercent }: {
       return updated;
     }));
 
+    if (id < 0) return;
     if (saveTimers.current[id]) clearTimeout(saveTimers.current[id]);
-    saveTimers.current[id] = setTimeout(() => saveItem(id, field, value), 600);
+    saveTimers.current[id] = setTimeout(() => saveItem(id, field, value), 800);
   };
 
   const saveItem = async (id: number, field: string, value: string) => {
@@ -72,26 +73,29 @@ export default function EstimateTable({ projectId, discountPercent }: {
   };
 
   const addItem = async () => {
-    if (!newItem.name.trim()) return;
+    if (!newName.trim()) return;
+    const maxSort = items.length > 0 ? Math.max(...items.map(i => i.sort_order)) + 1 : 0;
+    const tempId = -Date.now();
+    const row: WorkItem = {
+      id: tempId, name: newName.trim(), quantity: 1, unit: "\u0448\u0442", price: 0, sort_order: maxSort,
+    };
+    setItems(prev => [...prev, row]);
+    setNewName("");
     try {
-      const maxSort = items.length > 0 ? Math.max(...items.map(i => i.sort_order)) + 1 : 0;
-      await fetch(`${API}?action=work_items`, {
+      const r = await fetch(`${API}?action=work_items`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          project_id: projectId, name: newItem.name,
-          quantity: parseFloat(newItem.quantity) || 1,
-          unit: newItem.unit || "ш��",
-          price: parseFloat(newItem.price) || 0,
-          sort_order: maxSort,
-        }),
+        body: JSON.stringify({ project_id: projectId, name: row.name, quantity: row.quantity, unit: row.unit, price: row.price, sort_order: maxSort }),
       });
-      setNewItem({ name: "", quantity: "1", unit: "шт", price: "0" });
-      load();
+      const data = await r.json();
+      if (data.ok && data.id) {
+        setItems(prev => prev.map(i => i.id === tempId ? { ...i, id: data.id } : i));
+      }
     } catch { /* ignore */ }
   };
 
   const removeItem = async (id: number) => {
     setItems(prev => prev.filter(i => i.id !== id));
+    if (id < 0) return;
     try {
       await fetch(`${API}?action=work_items&id=${id}&delete=true`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: "{}",
@@ -113,7 +117,6 @@ export default function EstimateTable({ projectId, discountPercent }: {
     setItems(reordered);
     dragItem.current = null;
     dragOver.current = null;
-
     try {
       await fetch(`${API}?action=reorder`, {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -251,7 +254,7 @@ export default function EstimateTable({ projectId, discountPercent }: {
                     className="w-full bg-transparent text-sm text-right focus:outline-none focus:bg-snow rounded px-1 py-0.5 transition-colors hover:bg-snow/50 tabular-nums" />
                 </td>
                 <td className="px-3 py-2 text-right text-sm font-medium tabular-nums select-none">
-                  {(item.quantity * item.price).toLocaleString("ru")} ₽
+                  {(item.quantity * item.price).toLocaleString("ru")} &#8381;
                 </td>
                 <td className="px-2 py-2">
                   <button onClick={() => removeItem(item.id)}
@@ -264,29 +267,14 @@ export default function EstimateTable({ projectId, discountPercent }: {
             <tr className="bg-snow/30">
               <td className="px-2 py-2"></td>
               <td className="px-3 py-2 text-xs text-ink-faint">+</td>
-              <td className="px-3 py-2">
-                <input value={newItem.name} onChange={e => setNewItem(p => ({ ...p, name: e.target.value }))}
+              <td className="px-3 py-2" colSpan={5}>
+                <input value={newName} onChange={e => setNewName(e.target.value)}
                   onKeyDown={e => e.key === "Enter" && addItem()}
-                  placeholder="Новый вид работ..." className="w-full bg-transparent text-sm placeholder:text-ink-faint/50 focus:outline-none px-1 py-0.5" />
+                  placeholder="Введите название и нажмите Enter..."
+                  className="w-full bg-transparent text-sm placeholder:text-ink-faint/50 focus:outline-none px-1 py-0.5" />
               </td>
-              <td className="px-3 py-2">
-                <input type="number" value={newItem.quantity} onChange={e => setNewItem(p => ({ ...p, quantity: e.target.value }))}
-                  onKeyDown={e => e.key === "Enter" && addItem()}
-                  className="w-full bg-transparent text-sm text-right focus:outline-none px-1 py-0.5 tabular-nums" />
-              </td>
-              <td className="px-3 py-2">
-                <input value={newItem.unit} onChange={e => setNewItem(p => ({ ...p, unit: e.target.value }))}
-                  onKeyDown={e => e.key === "Enter" && addItem()}
-                  className="w-full bg-transparent text-sm text-center focus:outline-none px-1 py-0.5" />
-              </td>
-              <td className="px-3 py-2">
-                <input type="number" value={newItem.price} onChange={e => setNewItem(p => ({ ...p, price: e.target.value }))}
-                  onKeyDown={e => e.key === "Enter" && addItem()}
-                  className="w-full bg-transparent text-sm text-right focus:outline-none px-1 py-0.5 tabular-nums" />
-              </td>
-              <td className="px-3 py-2"></td>
               <td className="px-2 py-2">
-                <button onClick={addItem} disabled={!newItem.name.trim()} className="text-ink-faint hover:text-ink disabled:opacity-30 transition-colors">
+                <button onClick={addItem} disabled={!newName.trim()} className="text-ink-faint hover:text-ink disabled:opacity-30 transition-colors">
                   <Icon name="Plus" size={15} />
                 </button>
               </td>
@@ -296,17 +284,17 @@ export default function EstimateTable({ projectId, discountPercent }: {
         <div className="border-t border-snow-dark p-5 space-y-2">
           <div className="flex justify-between text-sm">
             <span className="text-ink-muted">Подитого:</span>
-            <span className="tabular-nums">{subtotal.toLocaleString("ru")} ₽</span>
+            <span className="tabular-nums">{subtotal.toLocaleString("ru")} &#8381;</span>
           </div>
           {discountPercent > 0 && (
             <div className="flex justify-between text-sm">
               <span className="text-ink-muted">Скидка {discountPercent}%:</span>
-              <span className="text-red-500 tabular-nums">−{discount.toLocaleString("ru")} ₽</span>
+              <span className="text-red-500 tabular-nums">&minus;{discount.toLocaleString("ru")} &#8381;</span>
             </div>
           )}
           <div className="flex justify-between text-base font-semibold pt-2 border-t border-snow-dark">
             <span>Итого:</span>
-            <span className="tabular-nums">{total.toLocaleString("ru")} ₽</span>
+            <span className="tabular-nums">{total.toLocaleString("ru")} &#8381;</span>
           </div>
         </div>
       </div>

@@ -99,7 +99,7 @@ def handle_projects(method, params, body):
             for r in cur.fetchall():
                 p = dict(r)
                 cur2 = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-                cur2.execute("SELECT COALESCE(SUM(quantity * price), 0) as total FROM work_items WHERE project_id = %s", (p["id"],))
+                cur2.execute("SELECT COALESCE(SUM(quantity * price), 0) as total FROM work_items WHERE project_id = %s AND sort_order >= 0", (p["id"],))
                 p["total"] = float(cur2.fetchone()["total"])
                 cur2.execute("SELECT member_name, role FROM project_team WHERE project_id = %s", (p["id"],))
                 p["team"] = [dict(t) for t in cur2.fetchall()]
@@ -115,7 +115,7 @@ def handle_projects(method, params, body):
             project = cur.fetchone()
             if not project:
                 return json_resp({"ok": False, "error": "Not found"}, 404)
-            cur.execute("SELECT * FROM work_items WHERE project_id = %s ORDER BY sort_order, id", (project_id,))
+            cur.execute("SELECT * FROM work_items WHERE project_id = %s AND sort_order >= 0 ORDER BY sort_order, id", (project_id,))
             items = [dict(r) for r in cur.fetchall()]
             cur.execute("SELECT * FROM project_team WHERE project_id = %s ORDER BY id", (project_id,))
             team = [dict(r) for r in cur.fetchall()]

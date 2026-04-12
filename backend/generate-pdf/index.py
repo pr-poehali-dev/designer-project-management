@@ -402,13 +402,6 @@ def handler(event: dict, context) -> dict:
     project = fetch_project(int(project_id))
     company = fetch_company()
 
-    font_debug = []
-    try:
-        pdfmetrics.getFont("DejaVu")
-        font_debug.append("DejaVu:ok")
-    except Exception as e:
-        font_debug.append(f"DejaVu:err:{e}")
-
     pdf_bytes = build_pdf(project, company)
 
     key = f"proposals/kp_{project_id}_{uuid.uuid4().hex[:8]}.pdf"
@@ -422,5 +415,5 @@ def handler(event: dict, context) -> dict:
 
     return {
         "statusCode": 200, "headers": CORS_HEADERS,
-        "body": json.dumps({"ok": True, "url": pdf_url, "size_kb": round(len(pdf_bytes) / 1024), "font_debug": font_debug, "font_load": _font_errors}),
+        "body": json.dumps({"ok": True, "url": pdf_url}),
     }

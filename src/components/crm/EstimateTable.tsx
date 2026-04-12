@@ -1,13 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import Icon from "@/components/ui/icon";
-
-const API = "https://functions.poehali.dev/21fcd16a-d247-4b03-8505-0be9497f8386";
-
-interface WorkItem {
-  id: number; name: string; quantity: number; unit: string; price: number; sort_order: number; estimate_id?: number;
-}
-interface Template { id: number; name: string; item_count: number; }
-interface TemplateItem { name: string; quantity: number; unit: string; price: number; }
+import { API, WorkItem, Template, TemplateItem } from "./estimate/EstimateTypes";
+import EstimateTemplates from "./estimate/EstimateTemplates";
+import EstimateItemsTable from "./estimate/EstimateItemsTable";
 
 export default function EstimateTable({ projectId, estimateId, discountPercent, vatMode = "none", vatRate = 20, title = "Смета", onUpdateTitle }: {
   projectId: number; estimateId?: number; discountPercent: number;
@@ -63,7 +58,6 @@ export default function EstimateTable({ projectId, estimateId, discountPercent, 
 
   useEffect(() => { load(); }, [load]);
 
-  // Проверяем есть ли несохранённые изменения (только для существующих строк с реальными id)
   const hasUnsaved = (() => {
     const current = JSON.stringify(items.filter(i => i.id > 0).map(i => ({ id: i.id, name: i.name, quantity: i.quantity, unit: i.unit, price: i.price })));
     return current !== savedItems;
@@ -302,224 +296,44 @@ export default function EstimateTable({ projectId, estimateId, discountPercent, 
         </div>
       </div>
 
-      {showSaveAs && (
-        <div className="card-surface rounded-xl p-4 flex gap-3 animate-fade-in">
-          <input value={templateName} onChange={e => setTemplateName(e.target.value)}
-            onKeyDown={e => e.key === "Enter" && saveAsTemplate()}
-            placeholder="Название шаблона..." autoFocus
-            className="flex-1 bg-snow border border-snow-dark rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ink/10" />
-          <button onClick={saveAsTemplate} disabled={savingTemplate || !templateName.trim()}
-            className="px-4 py-2 bg-ink text-white text-sm font-medium rounded-xl hover:bg-ink-light transition-colors disabled:opacity-40">
-            {savingTemplate ? "..." : "Сохранить"}
-          </button>
-          <button onClick={() => setShowSaveAs(false)} className="text-ink-faint hover:text-ink"><Icon name="X" size={16} /></button>
-        </div>
-      )}
+      <EstimateTemplates
+        showTemplates={showTemplates}
+        templates={templates}
+        loadingTemplateId={loadingTemplateId}
+        applyTemplate={applyTemplate}
+        openEditTemplate={openEditTemplate}
+        showSaveAs={showSaveAs}
+        templateName={templateName}
+        setTemplateName={setTemplateName}
+        savingTemplate={savingTemplate}
+        saveAsTemplate={saveAsTemplate}
+        setShowSaveAs={setShowSaveAs}
+        editingTemplate={editingTemplate}
+        setEditingTemplate={setEditingTemplate}
+        updateTplItem={updateTplItem}
+        addTplItem={addTplItem}
+        removeTplItem={removeTplItem}
+        saveEditTemplate={saveEditTemplate}
+      />
 
-      {showTemplates && (
-        <div className="card-surface rounded-xl p-4 animate-fade-in">
-          <p className="text-xs text-ink-muted font-medium mb-3">Выберите шаблон для добавления позиций:</p>
-          {templates.length === 0 ? (
-            <p className="text-xs text-ink-faint py-2">Шаблонов пока нет. Создайте смету и нажмите «Сохранить как шаблон».</p>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {templates.map(t => (
-                <div key={t.id} className="flex items-center gap-1 p-3 rounded-xl border border-snow-dark hover:border-ink-faint transition-all">
-                  <button onClick={() => applyTemplate(t.id)} className="flex items-center gap-3 flex-1 text-left min-w-0">
-                    <div className="w-8 h-8 rounded-lg bg-snow flex items-center justify-center shrink-0">
-                      <Icon name="FileStack" size={14} className="text-ink-muted" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">{t.name}</p>
-                      <p className="text-[10px] text-ink-faint">{t.item_count} позиций</p>
-                    </div>
-                  </button>
-                  <button onClick={() => openEditTemplate(t.id)}
-                    className="text-ink-faint hover:text-ink transition-colors p-1.5 rounded-lg hover:bg-snow shrink-0"
-                    title="Редактировать">
-                    {loadingTemplateId === t.id
-                      ? <div className="w-3.5 h-3.5 border border-ink/20 border-t-ink rounded-full animate-spin" />
-                      : <Icon name="Pencil" size={13} />}
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {editingTemplate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-ink/20 backdrop-blur-sm" onClick={() => setEditingTemplate(null)} />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 overflow-hidden animate-fade-in">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-snow-dark">
-              <div className="flex items-center gap-2">
-                <Icon name="FileStack" size={16} className="text-ink-muted" />
-                <input value={editingTemplate.name}
-                  onChange={e => setEditingTemplate(prev => prev ? { ...prev, name: e.target.value } : prev)}
-                  className="font-semibold bg-transparent focus:outline-none focus:bg-snow rounded px-2 py-1 -ml-1 text-sm" />
-              </div>
-              <button onClick={() => setEditingTemplate(null)} className="text-ink-faint hover:text-ink">
-                <Icon name="X" size={18} />
-              </button>
-            </div>
-            <div className="overflow-y-auto max-h-96">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-snow-dark bg-snow/50">
-                    <th className="text-left px-4 py-2.5 text-xs text-ink-faint font-medium">Наименование</th>
-                    <th className="text-right px-3 py-2.5 text-xs text-ink-faint font-medium w-20">Кол-во</th>
-                    <th className="text-center px-3 py-2.5 text-xs text-ink-faint font-medium w-14">Ед.</th>
-                    <th className="text-right px-3 py-2.5 text-xs text-ink-faint font-medium w-28">Цена</th>
-                    <th className="w-10"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-snow-dark">
-                  {editingTemplate.items.map((item, idx) => (
-                    <tr key={idx} className="hover:bg-snow/30 group">
-                      <td className="px-4 py-2">
-                        <input value={item.name} onChange={e => updateTplItem(idx, "name", e.target.value)}
-                          placeholder="Название работы..."
-                          className="w-full bg-transparent text-sm focus:outline-none focus:bg-snow rounded px-1 py-0.5 hover:bg-snow/50 transition-colors" />
-                      </td>
-                      <td className="px-3 py-2">
-                        <input type="number" value={item.quantity} onChange={e => updateTplItem(idx, "quantity", e.target.value)}
-                          className="w-full bg-transparent text-sm text-right focus:outline-none focus:bg-snow rounded px-1 py-0.5 hover:bg-snow/50 transition-colors tabular-nums" />
-                      </td>
-                      <td className="px-3 py-2">
-                        <input value={item.unit} onChange={e => updateTplItem(idx, "unit", e.target.value)}
-                          className="w-full bg-transparent text-sm text-center focus:outline-none focus:bg-snow rounded px-1 py-0.5 hover:bg-snow/50 transition-colors" />
-                      </td>
-                      <td className="px-3 py-2">
-                        <input type="number" value={item.price} onChange={e => updateTplItem(idx, "price", e.target.value)}
-                          className="w-full bg-transparent text-sm text-right focus:outline-none focus:bg-snow rounded px-1 py-0.5 hover:bg-snow/50 transition-colors tabular-nums" />
-                      </td>
-                      <td className="px-2 py-2">
-                        <button onClick={() => removeTplItem(idx)}
-                          className="text-ink-faint/0 group-hover:text-ink-faint hover:!text-red-500 transition-colors">
-                          <Icon name="Trash2" size={13} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                  <tr className="bg-snow/30">
-                    <td colSpan={5} className="px-4 py-2.5">
-                      <button onClick={addTplItem} className="flex items-center gap-2 text-xs text-ink-muted hover:text-ink transition-colors">
-                        <Icon name="Plus" size={13} /> Добавить позицию
-                      </button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <div className="flex justify-end gap-3 px-6 py-4 border-t border-snow-dark">
-              <button onClick={() => setEditingTemplate(null)} className="px-4 py-2 text-sm text-ink-muted hover:text-ink transition-colors">
-                Отмена
-              </button>
-              <button onClick={saveEditTemplate} className="px-5 py-2 bg-ink text-white text-sm font-medium rounded-xl hover:bg-ink-light transition-colors flex items-center gap-2">
-                <Icon name="Save" size={14} /> Сохранить
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="card-surface rounded-2xl overflow-hidden">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-snow-dark bg-snow/50">
-              <th className="w-8 px-2"></th>
-              <th className="text-left px-3 py-3 text-xs text-ink-faint font-medium w-8">#</th>
-              <th className="text-left px-3 py-3 text-xs text-ink-faint font-medium">Наименование</th>
-              <th className="text-right px-3 py-3 text-xs text-ink-faint font-medium w-20">Кол-во</th>
-              <th className="text-center px-3 py-3 text-xs text-ink-faint font-medium w-16">Ед.</th>
-              <th className="text-right px-3 py-3 text-xs text-ink-faint font-medium w-28">Цена</th>
-              <th className="text-right px-3 py-3 text-xs text-ink-faint font-medium w-28">Сумма</th>
-              <th className="w-10"></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-snow-dark">
-            {items.map((item, i) => (
-              <tr key={item.id}
-                draggable
-                onDragStart={() => handleDragStart(i)}
-                onDragEnter={() => handleDragEnter(i)}
-                onDragEnd={handleDragEnd}
-                onDragOver={e => e.preventDefault()}
-                className="hover:bg-snow/30 transition-colors group">
-                <td className="px-2 py-2 cursor-grab active:cursor-grabbing">
-                  <Icon name="GripVertical" size={14} className="text-ink-faint/40 group-hover:text-ink-faint transition-colors" />
-                </td>
-                <td className="px-3 py-2 text-xs text-ink-faint">{i + 1}</td>
-                <td className="px-3 py-2">
-                  <input value={item.name} onChange={e => updateItemLocal(item.id, "name", e.target.value)}
-                    className="w-full bg-transparent text-sm focus:outline-none focus:bg-snow rounded px-1 py-0.5 -ml-1 transition-colors hover:bg-snow/50" />
-                </td>
-                <td className="px-3 py-2">
-                  <input type="number" value={item.quantity} onChange={e => updateItemLocal(item.id, "quantity", e.target.value)}
-                    className="w-full bg-transparent text-sm text-right focus:outline-none focus:bg-snow rounded px-1 py-0.5 transition-colors hover:bg-snow/50 tabular-nums" />
-                </td>
-                <td className="px-3 py-2">
-                  <input value={item.unit} onChange={e => updateItemLocal(item.id, "unit", e.target.value)}
-                    className="w-full bg-transparent text-sm text-center focus:outline-none focus:bg-snow rounded px-1 py-0.5 transition-colors hover:bg-snow/50" />
-                </td>
-                <td className="px-3 py-2">
-                  <input type="number" value={item.price} onChange={e => updateItemLocal(item.id, "price", e.target.value)}
-                    className="w-full bg-transparent text-sm text-right focus:outline-none focus:bg-snow rounded px-1 py-0.5 transition-colors hover:bg-snow/50 tabular-nums" />
-                </td>
-                <td className="px-3 py-2 text-right text-sm font-medium tabular-nums select-none">
-                  {(item.quantity * item.price).toLocaleString("ru")} &#8381;
-                </td>
-                <td className="px-2 py-2">
-                  <button onClick={() => removeItem(item.id)}
-                    className="text-ink-faint/0 group-hover:text-ink-faint hover:!text-red-500 transition-colors">
-                    <Icon name="Trash2" size={13} />
-                  </button>
-                </td>
-              </tr>
-            ))}
-            <tr className="bg-snow/30">
-              <td className="px-2 py-2"></td>
-              <td className="px-3 py-2 text-xs text-ink-faint">+</td>
-              <td className="px-3 py-2" colSpan={5}>
-                <input value={newName} onChange={e => setNewName(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && addItem()}
-                  placeholder="Введите название и нажмите Enter..."
-                  className="w-full bg-transparent text-sm placeholder:text-ink-faint/50 focus:outline-none px-1 py-0.5" />
-              </td>
-              <td className="px-2 py-2">
-                <button onClick={addItem} disabled={!newName.trim()} className="text-ink-faint hover:text-ink disabled:opacity-30 transition-colors">
-                  <Icon name="Plus" size={15} />
-                </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-        <div className="border-t border-snow-dark p-5 space-y-2">
-          <div className="flex justify-between text-sm">
-            <span className="text-ink-muted">Итого:</span>
-            <span className="tabular-nums">{subtotal.toLocaleString("ru")} &#8381;</span>
-          </div>
-          {discountPercent > 0 && (
-            <div className="flex justify-between text-sm">
-              <span className="text-ink-muted">Скидка {discountPercent}%:</span>
-              <span className="text-red-500 tabular-nums">&minus;{discount.toLocaleString("ru")} &#8381;</span>
-            </div>
-          )}
-          {vatMode !== "none" && (
-            <div className="flex justify-between text-sm">
-              <span className="text-ink-muted">
-                {vatMode === "included" ? `В т.ч. НДС ${vatRate}%` : `НДС ${vatRate}%`}:
-              </span>
-              <span className="tabular-nums">{Math.round(vatAmt).toLocaleString("ru")} &#8381;</span>
-            </div>
-          )}
-          <div className="flex justify-between text-base font-semibold pt-2 border-t border-snow-dark">
-            <span>{vatMode === "added" ? "Итого с НДС:" : "Итого:"}</span>
-            <span className="tabular-nums">{Math.round(total).toLocaleString("ru")} &#8381;</span>
-          </div>
-        </div>
-      </div>
+      <EstimateItemsTable
+        items={items}
+        newName={newName}
+        setNewName={setNewName}
+        updateItemLocal={updateItemLocal}
+        removeItem={removeItem}
+        addItem={addItem}
+        handleDragStart={handleDragStart}
+        handleDragEnter={handleDragEnter}
+        handleDragEnd={handleDragEnd}
+        subtotal={subtotal}
+        discountPercent={discountPercent}
+        discount={discount}
+        vatMode={vatMode}
+        vatRate={vatRate}
+        vatAmt={vatAmt}
+        total={total}
+      />
     </div>
   );
 }

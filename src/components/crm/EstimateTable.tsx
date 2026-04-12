@@ -4,7 +4,7 @@ import Icon from "@/components/ui/icon";
 const API = "https://functions.poehali.dev/21fcd16a-d247-4b03-8505-0be9497f8386";
 
 interface WorkItem {
-  id: number; name: string; quantity: number; unit: string; price: number; sort_order: number;
+  id: number; name: string; quantity: number; unit: string; price: number; sort_order: number; estimate_id?: number;
 }
 interface Template { id: number; name: string; item_count: number; }
 interface TemplateItem { name: string; quantity: number; unit: string; price: number; }
@@ -32,15 +32,26 @@ export default function EstimateTable({ projectId, estimateId, discountPercent, 
 
   const load = useCallback(async () => {
     try {
-      const r = await fetch(`${API}?action=projects&id=${projectId}`);
-      const data = await r.json();
-      if (data.ok) {
-        const loaded = data.work_items || [];
-        setItems(loaded);
-        setSavedItems(JSON.stringify(loaded.map((i: WorkItem) => ({ id: i.id, name: i.name, quantity: i.quantity, unit: i.unit, price: i.price }))));
+      if (estimateId) {
+        const r = await fetch(`${API}?action=estimates&project_id=${projectId}`);
+        const data = await r.json();
+        if (data.ok) {
+          const est = (data.estimates || []).find((e: { id: number }) => e.id === estimateId);
+          const loaded = est?.items || [];
+          setItems(loaded);
+          setSavedItems(JSON.stringify(loaded.map((i: WorkItem) => ({ id: i.id, name: i.name, quantity: i.quantity, unit: i.unit, price: i.price }))));
+        }
+      } else {
+        const r = await fetch(`${API}?action=projects&id=${projectId}`);
+        const data = await r.json();
+        if (data.ok) {
+          const loaded = (data.work_items || []).filter((i: WorkItem) => !i.estimate_id);
+          setItems(loaded);
+          setSavedItems(JSON.stringify(loaded.map((i: WorkItem) => ({ id: i.id, name: i.name, quantity: i.quantity, unit: i.unit, price: i.price }))));
+        }
       }
     } catch { /* ignore */ }
-  }, [projectId]);
+  }, [projectId, estimateId]);
 
   const loadTemplates = useCallback(async () => {
     try {
@@ -98,7 +109,7 @@ export default function EstimateTable({ projectId, estimateId, discountPercent, 
     try {
       const r = await fetch(`${API}?action=work_items`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ project_id: projectId, name: row.name, quantity: 1, unit: "шт", price: 0, sort_order: maxSort }),
+        body: JSON.stringify({ project_id: projectId, estimate_id: estimateId || null, name: row.name, quantity: 1, unit: "шт", price: 0, sort_order: maxSort }),
       });
       const data = await r.json();
       if (data.ok && data.id) {
@@ -229,10 +240,28 @@ export default function EstimateTable({ projectId, estimateId, discountPercent, 
 
   const subtotal = items.reduce((s, i) => s + i.quantity * i.price, 0);
   const discount = subtotal * (discountPercent || 0) / 100;
-  const total = subtotal - discount;
+  const afterDiscount = subtotal - discount;
+
+  const vatAmt = vatMode === "added"
+    ? afterDiscount * (vatRate || 20) / 100
+    : vatMode === "included"
+      ? afterDiscount - afterDiscount / (1 + (vatRate || 20) / 100)
+      : 0;
+  const total = vatMode === "added" ? afterDiscount + vatAmt : afterDiscount;
 
   return (
     <div className="space-y-4">
+      <div className="flex items-center gap-3 mb-1">
+        <Icon name="Calculator" size={16} className="text-ink-muted" />
+        {onUpdateTitle ? (
+          <input value={estTitle} onChange={e => setEstTitle(e.target.value)}
+            onBlur={() => onUpdateTitle(estTitle)}
+            className="text-sm font-semibold bg-transparent focus:outline-none focus:bg-snow rounded px-1 py-0.5 -ml-1" />
+        ) : (
+          <span className="text-sm font-semibold">{title}</span>
+        )}
+      </div>
+
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <button onClick={() => { setShowTemplates(!showTemplates); if (!showTemplates) loadTemplates(); }}
@@ -468,7 +497,7 @@ export default function EstimateTable({ projectId, estimateId, discountPercent, 
         </table>
         <div className="border-t border-snow-dark p-5 space-y-2">
           <div className="flex justify-between text-sm">
-            <span className="text-ink-muted">Подитого:</span>
+            <span className="text-ink-muted">Итого:</span>
             <span className="tabular-nums">{subtotal.toLocaleString("ru")} &#8381;</span>
           </div>
           {discountPercent > 0 && (
@@ -477,9 +506,17 @@ export default function EstimateTable({ projectId, estimateId, discountPercent, 
               <span className="text-red-500 tabular-nums">&minus;{discount.toLocaleString("ru")} &#8381;</span>
             </div>
           )}
+          {vatMode !== "none" && (
+            <div className="flex justify-between text-sm">
+              <span className="text-ink-muted">
+                {vatMode === "included" ? `В т.ч. НДС ${vatRate}%` : `НДС ${vatRate}%`}:
+              </span>
+              <span className="tabular-nums">{Math.round(vatAmt).toLocaleString("ru")} &#8381;</span>
+            </div>
+          )}
           <div className="flex justify-between text-base font-semibold pt-2 border-t border-snow-dark">
-            <span>Итого:</span>
-            <span className="tabular-nums">{total.toLocaleString("ru")} &#8381;</span>
+            <span>{vatMode === "added" ? "Итого с НДС:" : "Итого:"}</span>
+            <span className="tabular-nums">{Math.round(total).toLocaleString("ru")} &#8381;</span>
           </div>
         </div>
       </div>

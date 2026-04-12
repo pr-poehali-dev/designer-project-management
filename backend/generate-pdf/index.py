@@ -418,11 +418,22 @@ def _build_table(project, INK, MID, FNT, SNOW, RED, header_bg=None):
     def tr(t, b=False, c=None, s=9):
         return Paragraph(t, ps("tr", fontName=F(b), fontSize=s, textColor=c or MID, alignment=TA_RIGHT))
 
-    tots = [["","","","", tr("Подитого"), tr(fm(subtotal))]]
+    vat_mode = project.get("vat_mode", "none")
+    vat_rate = float(project.get("vat_rate") or 20)
+    after_disc = subtotal - disc_val
+    vat_amt = after_disc * vat_rate / 100 if vat_mode == "added" else (after_disc - after_disc / (1 + vat_rate / 100) if vat_mode == "included" else 0)
+    grand_total = after_disc + vat_amt if vat_mode == "added" else after_disc
+
+    tots = [["","","","", tr("Итого"), tr(fm(subtotal))]]
     if disc_pct > 0:
         dl = f"Скидка {int(disc_pct) if disc_pct == int(disc_pct) else disc_pct}%"
         tots.append(["","","","", tr(dl, c=RED), tr("\u2212"+fm(disc_val), c=RED)])
-    tots.append(["","","","", tr("Итого к оплате", True, INK, 12), tr(fm(total), True, INK, 13)])
+    if vat_mode == "included":
+        tots.append(["","","","", tr(f"В т.ч. НДС {int(vat_rate)}%"), tr(fm(round(vat_amt)))])
+    elif vat_mode == "added":
+        tots.append(["","","","", tr(f"НДС {int(vat_rate)}%"), tr(fm(round(vat_amt)))])
+    total_label = "Итого с НДС" if vat_mode == "added" else "Итого к оплате"
+    tots.append(["","","","", tr(total_label, True, INK, 12), tr(fm(round(grand_total)), True, INK, 13)])
 
     tt = Table(tots, colWidths=cw)
     n = len(tots)

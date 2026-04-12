@@ -29,7 +29,6 @@ export default function ProjectCard({ projectId, onBack }: { projectId: number; 
   const [saving, setSaving] = useState(false);
   const [savedProject, setSavedProject] = useState("");
   const [status, setStatus] = useState<"idle" | "saved" | "error">("idle");
-
   const [newMember, setNewMember] = useState({ member_name: "", role: "" });
 
   const load = useCallback(async () => {
@@ -83,8 +82,12 @@ export default function ProjectCard({ projectId, onBack }: { projectId: number; 
     return <div className="flex justify-center py-20"><div className="w-5 h-5 border-2 border-ink/20 border-t-ink rounded-full animate-spin" /></div>;
   }
   if (!project) {
-    return <div className="text-center py-20"><p className="text-sm text-ink-faint">Проект не найден</p>
-      <button onClick={onBack} className="text-sm text-ink font-medium hover:underline mt-2">Назад</button></div>;
+    return (
+      <div className="text-center py-20">
+        <p className="text-sm text-ink-faint">Проект не найден</p>
+        <button onClick={onBack} className="text-sm text-ink font-medium hover:underline mt-2">Назад</button>
+      </div>
+    );
   }
 
   const hasProjectChanges = project && JSON.stringify(project) !== savedProject;
@@ -158,101 +161,7 @@ export default function ProjectCard({ projectId, onBack }: { projectId: number; 
       </div>
 
       {tab === "estimate" && (
-        <div className="card-surface rounded-2xl overflow-hidden">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-snow-dark bg-snow/50">
-                <th className="text-left px-4 py-3 text-xs text-ink-faint font-medium w-8">#</th>
-                <th className="text-left px-4 py-3 text-xs text-ink-faint font-medium">Наименование</th>
-                <th className="text-right px-4 py-3 text-xs text-ink-faint font-medium w-20">Кол-во</th>
-                <th className="text-center px-4 py-3 text-xs text-ink-faint font-medium w-16">Ед.</th>
-                <th className="text-right px-4 py-3 text-xs text-ink-faint font-medium w-28">Цена</th>
-                <th className="text-right px-4 py-3 text-xs text-ink-faint font-medium w-28">Сумма</th>
-                <th className="w-16"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-snow-dark">
-              {items.map((item, i) => (
-                <tr key={item.id} className="hover:bg-snow/30 transition-colors">
-                  {editingId === item.id ? (
-                    <>
-                      <td className="px-4 py-2 text-xs text-ink-faint">{i + 1}</td>
-                      <td className="px-4 py-2">
-                        <input value={editItem.name} onChange={e => setEditItem(p => ({ ...p, name: e.target.value }))}
-                          className="w-full bg-snow border border-snow-dark rounded-lg px-2 py-1.5 text-sm focus:outline-none" />
-                      </td>
-                      <td className="px-4 py-2">
-                        <input type="number" value={editItem.quantity} onChange={e => setEditItem(p => ({ ...p, quantity: e.target.value }))}
-                          className="w-full bg-snow border border-snow-dark rounded-lg px-2 py-1.5 text-sm text-right focus:outline-none" />
-                      </td>
-                      <td className="px-4 py-2">
-                        <input value={editItem.unit} onChange={e => setEditItem(p => ({ ...p, unit: e.target.value }))}
-                          className="w-full bg-snow border border-snow-dark rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none" />
-                      </td>
-                      <td className="px-4 py-2">
-                        <input type="number" value={editItem.price} onChange={e => setEditItem(p => ({ ...p, price: e.target.value }))}
-                          className="w-full bg-snow border border-snow-dark rounded-lg px-2 py-1.5 text-sm text-right focus:outline-none" />
-                      </td>
-                      <td className="px-4 py-2 text-right text-sm font-medium tabular-nums">
-                        {((parseFloat(editItem.quantity) || 0) * (parseFloat(editItem.price) || 0)).toLocaleString("ru")} ₽
-                      </td>
-                      <td className="px-4 py-2 flex gap-1 justify-end">
-                        <button onClick={() => updateItem(item.id)} className="text-green-600 hover:text-green-700"><Icon name="Check" size={15} /></button>
-                        <button onClick={() => setEditingId(null)} className="text-ink-faint hover:text-ink"><Icon name="X" size={15} /></button>
-                      </td>
-                    </>
-                  ) : (
-                    <>
-                      <td className="px-4 py-3 text-xs text-ink-faint">{i + 1}</td>
-                      <td className="px-4 py-3 text-sm">{item.name}</td>
-                      <td className="px-4 py-3 text-sm text-right tabular-nums">{item.quantity}</td>
-                      <td className="px-4 py-3 text-sm text-center text-ink-faint">{item.unit}</td>
-                      <td className="px-4 py-3 text-sm text-right tabular-nums">{Number(item.price).toLocaleString("ru")} ₽</td>
-                      <td className="px-4 py-3 text-sm text-right font-medium tabular-nums">{(item.quantity * item.price).toLocaleString("ru")} ₽</td>
-                      <td className="px-4 py-3 flex gap-1 justify-end">
-                        <button onClick={() => startEdit(item)} className="text-ink-faint hover:text-ink"><Icon name="Pencil" size={13} /></button>
-                        <button onClick={() => removeItem(item.id)} className="text-ink-faint hover:text-red-500"><Icon name="Trash2" size={13} /></button>
-                      </td>
-                    </>
-                  )}
-                </tr>
-              ))}
-              <tr className="bg-snow/30">
-                <td className="px-4 py-2 text-xs text-ink-faint">+</td>
-                <td className="px-4 py-2">
-                  <input value={newItem.name} onChange={e => setNewItem(p => ({ ...p, name: e.target.value }))}
-                    onKeyDown={e => e.key === "Enter" && addItem()}
-                    placeholder="Новый вид работ..." className="w-full bg-transparent text-sm placeholder:text-ink-faint/50 focus:outline-none" />
-                </td>
-                <td className="px-4 py-2">
-                  <input type="number" value={newItem.quantity} onChange={e => setNewItem(p => ({ ...p, quantity: e.target.value }))}
-                    className="w-full bg-transparent text-sm text-right focus:outline-none" />
-                </td>
-                <td className="px-4 py-2">
-                  <input value={newItem.unit} onChange={e => setNewItem(p => ({ ...p, unit: e.target.value }))}
-                    className="w-full bg-transparent text-sm text-center focus:outline-none" />
-                </td>
-                <td className="px-4 py-2">
-                  <input type="number" value={newItem.price} onChange={e => setNewItem(p => ({ ...p, price: e.target.value }))}
-                    className="w-full bg-transparent text-sm text-right focus:outline-none" />
-                </td>
-                <td className="px-4 py-2"></td>
-                <td className="px-4 py-2">
-                  <button onClick={addItem} disabled={!newItem.name.trim()} className="text-ink-faint hover:text-ink disabled:opacity-30">
-                    <Icon name="Plus" size={15} />
-                  </button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-          <div className="border-t border-snow-dark p-5 space-y-2">
-            <div className="flex justify-between text-sm"><span className="text-ink-muted">Подитого:</span><span className="tabular-nums">{subtotal.toLocaleString("ru")} ₽</span></div>
-            {project.discount_percent > 0 && (
-              <div className="flex justify-between text-sm"><span className="text-ink-muted">Скидка {project.discount_percent}%:</span><span className="text-red-500 tabular-nums">−{discount.toLocaleString("ru")} ₽</span></div>
-            )}
-            <div className="flex justify-between text-base font-semibold pt-2 border-t border-snow-dark"><span>Итого:</span><span className="tabular-nums">{total.toLocaleString("ru")} ₽</span></div>
-          </div>
-        </div>
+        <EstimateTable projectId={projectId} discountPercent={project.discount_percent || 0} />
       )}
 
       {tab === "team" && (
@@ -268,13 +177,19 @@ export default function ProjectCard({ projectId, onBack }: { projectId: number; 
             </button>
           </div>
           {team.length === 0 ? (
-            <div className="text-center py-12"><Icon name="Users" size={28} className="text-ink-faint mx-auto mb-2" /><p className="text-sm text-ink-faint">Команда не назначена</p></div>
+            <div className="text-center py-12">
+              <Icon name="Users" size={28} className="text-ink-faint mx-auto mb-2" />
+              <p className="text-sm text-ink-faint">Команда не назначена</p>
+            </div>
           ) : team.map(m => (
             <div key={m.id} className="card-surface rounded-xl p-4 flex items-center gap-3">
               <div className="w-9 h-9 rounded-full bg-ink flex items-center justify-center text-white text-xs font-bold">
                 {m.member_name.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase()}
               </div>
-              <div><p className="text-sm font-medium">{m.member_name}</p><p className="text-xs text-ink-faint">{m.role}</p></div>
+              <div>
+                <p className="text-sm font-medium">{m.member_name}</p>
+                <p className="text-xs text-ink-faint">{m.role}</p>
+              </div>
             </div>
           ))}
         </div>

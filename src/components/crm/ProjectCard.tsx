@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Icon from "@/components/ui/icon";
 import EstimateTable from "./EstimateTable";
+import ProjectChat from "./ProjectChat";
 
 const API = "https://functions.poehali.dev/21fcd16a-d247-4b03-8505-0be9497f8386";
 const PDF_API = "https://functions.poehali.dev/79538cf9-12ec-42f3-9e60-aaf7a9edfba2";
@@ -13,7 +14,7 @@ interface ProjectData {
 interface TeamMember { id: number; member_name: string; role: string; }
 interface ClientShort { id: number; name: string; }
 
-type Tab = "estimate" | "team" | "documents";
+type Tab = "estimate" | "team" | "documents" | "chat";
 
 const STATUS_OPTIONS = [
   { id: "draft", label: "Черновик" },
@@ -252,6 +253,7 @@ export default function ProjectCard({ projectId, onBack }: { projectId: number; 
       <div className="flex gap-1 mb-6 bg-white rounded-full p-1 border border-snow-dark w-fit">
         {([
           { id: "estimate" as Tab, label: "Смета", icon: "Calculator" },
+          { id: "chat" as Tab, label: "Чат", icon: "MessageSquare" },
           { id: "team" as Tab, label: "Команда", icon: "Users" },
           { id: "documents" as Tab, label: "Документы", icon: "FileText" },
         ]).map(t => (
@@ -264,6 +266,10 @@ export default function ProjectCard({ projectId, onBack }: { projectId: number; 
 
       {tab === "estimate" && (
         <EstimateTable projectId={projectId} discountPercent={project.discount_percent || 0} />
+      )}
+
+      {tab === "chat" && (
+        <ProjectChat projectId={projectId} projectName={project.name} />
       )}
 
       {tab === "team" && (

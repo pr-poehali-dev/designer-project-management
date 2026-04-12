@@ -299,6 +299,83 @@ def handle_templates(method, params, body):
         conn.close()
 
 
+def handle_project_chat(method, params, body):
+    """Чат проекта: создание, участники, сообщения."""
+    conn = get_db()
+    try:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        project_id = params.get("project_id")
+
+        # Получить или создать чат проекта + участников + сообщения
+        if method == "GET" and project_id:
+            cur.execute("SELECT * FROM project_chats WHERE project_id = %s", (project_id,))
+            chat = cur.fetchone()
+            if not chat:
+                # Создаём чат и добавляем клиента проекта автоматически
+                cur.execute("INSERT INTO project_chats (project_id) VALUES (%s) RETURNING id", (project_id,))
+                chat_id = cur.fetchone()["id"]
+                # Добавляем клиента если привязан
+                cur.execute("""
+                    SELECT c.name, c.contact_person FROM projects p
+                    LEFT JOIN clients c ON c.id = p.client_id
+                    WHERE p.id = %s AND p.client_id IS NOT NULL
+                """, (project_id,))
+                client_row = cur.fetchone()
+                if client_row:
+                    cname = client_row["contact_person"] or client_row["name"] or "Клиент"
+                    cur.execute(
+                        "INSERT INTO project_chat_members (chat_id, name, role, color) VALUES (%s, %s, 'client', '#6366F1') RETURNING id",
+                        (chat_id, cname)
+                    )
+                conn.commit()
+                cur.execute("SELECT * FROM project_chats WHERE id = %s", (chat_id,))
+                chat = cur.fetchone()
+            else:
+                chat_id = chat["id"]
+
+            cur.execute("SELECT * FROM project_chat_members WHERE chat_id = %s ORDER BY id", (chat_id,))
+            members = [dict(r) for r in cur.fetchall()]
+            cur.execute("SELECT * FROM project_chat_messages WHERE chat_id = %s ORDER BY created_at ASC", (chat_id,))
+            messages = [dict(r) for r in cur.fetchall()]
+            return json_resp({"ok": True, "chat": dict(chat), "members": members, "messages": messages})
+
+        # Отправить сообщение
+        if method == "POST" and params.get("sub") == "message":
+            chat_id = body.get("chat_id")
+            text = body.get("text", "").strip()
+            author_name = body.get("author_name", "Менеджер")
+            author_role = body.get("author_role", "manager")
+            member_id = body.get("member_id")
+            if not chat_id or not text:
+                return json_resp({"ok": False, "error": "chat_id and text required"}, 400)
+            cur.execute(
+                "INSERT INTO project_chat_messages (chat_id, member_id, author_name, author_role, text) VALUES (%s, %s, %s, %s, %s) RETURNING *",
+                (chat_id, member_id, author_name, author_role, text)
+            )
+            msg = dict(cur.fetchone())
+            conn.commit()
+            return json_resp({"ok": True, "message": msg})
+
+        # Добавить участника
+        if method == "POST" and params.get("sub") == "member":
+            chat_id = body.get("chat_id")
+            name = body.get("name", "").strip()
+            role = body.get("role", "member")
+            color = body.get("color", "#111111")
+            if not chat_id or not name:
+                return json_resp({"ok": False, "error": "chat_id and name required"}, 400)
+            cur.execute(
+                "INSERT INTO project_chat_members (chat_id, name, role, color) VALUES (%s, %s, %s, %s) RETURNING *",
+                (chat_id, name, role, color)
+            )
+            member = dict(cur.fetchone())
+            conn.commit()
+            return json_resp({"ok": True, "member": member})
+
+    finally:
+        conn.close()
+
+
 def handle_clients_list_short(method, params, body):
     conn = get_db()
     try:
@@ -337,5 +414,7 @@ def handler(event: dict, context) -> dict:
         return handle_reorder(method, params, body)
     elif action == "templates":
         return handle_templates(method, params, body)
+    elif action == "project_chat":
+        return handle_project_chat(method, params, body)
 
     return json_resp({"ok": False, "error": f"Unknown action: {action}"}, 400)

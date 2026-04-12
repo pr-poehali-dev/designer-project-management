@@ -1,5 +1,5 @@
 """
-Интеграция с Авито Messenger API + автоответ через ChatGPT (Polza.ai).
+Авито Messenger API v3 + автоответ через ChatGPT (Polza.ai).
 Получение токена, списка чатов, сообщений, отправка ответов и автопилот.
 """
 import json
@@ -63,12 +63,8 @@ def avito_get(path: str, token: str) -> dict:
         headers={"Authorization": f"Bearer {token}"},
         method="GET"
     )
-    try:
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            return json.loads(resp.read())
-    except urllib.error.HTTPError as e:
-        body = e.read().decode("utf-8", errors="replace")
-        raise Exception(f"HTTP {e.code} for {url}: {body[:300]}")
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        return json.loads(resp.read())
 
 
 def avito_post(path: str, token: str, body: dict) -> dict:
@@ -84,7 +80,7 @@ def avito_post(path: str, token: str, body: dict) -> dict:
 
 def send_avito_message(user_id: int, chat_id: str, text: str, token: str) -> dict:
     return avito_post(
-        f"/messenger/v2/accounts/{user_id}/chats/{chat_id}/messages",
+        f"/messenger/v1/accounts/{user_id}/chats/{chat_id}/messages",
         token,
         {"message": {"text": text}, "type": "text"}
     )
@@ -194,10 +190,12 @@ def handler(event: dict, context) -> dict:
         processed = []
         errors = []
 
+        import time as _time
+
         for chat in chats:
             chat_id = chat["id"]
             try:
-                # Получаем последние 10 сообщений для контекста
+                _time.sleep(0.5)
                 msgs_data = avito_get(
                     f"/messenger/v3/accounts/{user_id}/chats/{chat_id}/messages?limit=10",
                     avito_token

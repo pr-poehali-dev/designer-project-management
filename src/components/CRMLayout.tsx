@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Icon from "@/components/ui/icon";
 import DashboardPage from "@/components/crm/DashboardPage";
 import ProjectsPage from "@/components/crm/ProjectsPage";
@@ -31,9 +31,27 @@ const BOTTOM_NAV = [
   { id: "company", label: "Компания", icon: "Building2" },
 ];
 
+const SETTINGS_API = "https://functions.poehali.dev/1e1d2ff7-8833-4400-a59e-564cb2ac887b";
+
 export default function CRMLayout({ onLogout }: Props) {
   const [active, setActive] = useState("dashboard");
   const [collapsed, setCollapsed] = useState(false);
+  const [userName, setUserName] = useState("");
+  const [userPosition, setUserPosition] = useState("");
+
+  const loadProfile = useCallback(async () => {
+    try {
+      const r = await fetch(`${SETTINGS_API}?action=profile`);
+      const data = await r.json();
+      if (data.ok) {
+        setUserName(data.profile.full_name || "");
+        setUserPosition(data.profile.position || "");
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => { loadProfile(); }, [loadProfile]);
+  useEffect(() => { if (active === "profile") loadProfile(); }, [active, loadProfile]);
 
   const renderPage = () => {
     switch (active) {
@@ -104,12 +122,14 @@ export default function CRMLayout({ onLogout }: Props) {
             </button>
           ) : (
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-ink flex items-center justify-center shrink-0">
-                <span className="text-white text-xs font-semibold">А</span>
-              </div>
+              <button onClick={() => setActive("profile")} className="w-8 h-8 rounded-full bg-ink flex items-center justify-center shrink-0 hover:bg-ink-light transition-colors">
+                <span className="text-white text-xs font-semibold">
+                  {userName ? userName.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase() : "?"}
+                </span>
+              </button>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium truncate">Алексей Иванов</p>
-                <p className="text-xs text-ink-faint">Дизайнер</p>
+                <p className="text-xs font-medium truncate">{userName || "Заполните профиль"}</p>
+                <p className="text-xs text-ink-faint">{userPosition || "—"}</p>
               </div>
               <button onClick={onLogout} className="text-ink-faint hover:text-ink transition-colors">
                 <Icon name="LogOut" size={14} />

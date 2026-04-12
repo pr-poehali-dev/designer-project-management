@@ -133,7 +133,7 @@ def handle_projects(method, params, body):
             return json_resp({"ok": True, "id": cur.fetchone()["id"]})
 
         if method in ("POST", "PUT") and project_id:
-            fields = ["name", "client_id", "status", "deadline", "discount_percent"]
+            fields = ["name", "client_id", "status", "deadline", "discount_percent", "vat_mode", "vat_rate"]
             sets, vals = [], []
             for f in fields:
                 if f in body:
@@ -158,8 +158,8 @@ def handle_work_items(method, params, body):
 
         if method == "POST" and not item_id:
             cur.execute(
-                "INSERT INTO work_items (project_id, name, quantity, unit, price, sort_order) VALUES (%s,%s,%s,%s,%s,%s) RETURNING id",
-                (body.get("project_id"), body.get("name", ""), body.get("quantity", 1),
+                "INSERT INTO work_items (project_id, estimate_id, name, quantity, unit, price, sort_order) VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING id",
+                (body.get("project_id"), body.get("estimate_id"), body.get("name", ""), body.get("quantity", 1),
                  body.get("unit", "шт"), body.get("price", 0), body.get("sort_order", 0))
             )
             conn.commit()
@@ -299,6 +299,52 @@ def handle_templates(method, params, body):
         conn.close()
 
 
+def handle_estimates(method, params, body):
+    conn = get_db()
+    try:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        estimate_id = params.get("id")
+        project_id = params.get("project_id")
+
+        if method == "GET" and project_id:
+            cur.execute("SELECT * FROM project_estimates WHERE project_id = %s ORDER BY sort_order, id", (project_id,))
+            estimates = [dict(r) for r in cur.fetchall()]
+            for est in estimates:
+                cur.execute("SELECT * FROM work_items WHERE estimate_id = %s AND sort_order >= 0 ORDER BY sort_order, id", (est["id"],))
+                est["items"] = [dict(r) for r in cur.fetchall()]
+            # Также включаем позиции без estimate_id (старые)
+            cur.execute("SELECT * FROM work_items WHERE project_id = %s AND estimate_id IS NULL AND sort_order >= 0 ORDER BY sort_order, id", (project_id,))
+            orphan_items = [dict(r) for r in cur.fetchall()]
+            return json_resp({"ok": True, "estimates": estimates, "orphan_items": orphan_items})
+
+        if method == "POST" and not estimate_id:
+            pid = body.get("project_id")
+            name = body.get("name", "Дополнительная смета")
+            cur.execute("SELECT COALESCE(MAX(sort_order), -1) + 1 as ns FROM project_estimates WHERE project_id = %s", (pid,))
+            ns = cur.fetchone()["ns"]
+            cur.execute(
+                "INSERT INTO project_estimates (project_id, name, discount_percent, vat_mode, vat_rate, sort_order) VALUES (%s,%s,%s,%s,%s,%s) RETURNING id",
+                (pid, name, body.get("discount_percent", 0), body.get("vat_mode", "none"), body.get("vat_rate", 20), ns)
+            )
+            conn.commit()
+            return json_resp({"ok": True, "id": cur.fetchone()["id"]})
+
+        if method in ("POST", "PUT") and estimate_id:
+            fields = ["name", "discount_percent", "vat_mode", "vat_rate"]
+            sets, vals = [], []
+            for f in fields:
+                if f in body:
+                    sets.append(f"{f} = %s")
+                    vals.append(body[f])
+            if sets:
+                vals.append(estimate_id)
+                cur.execute(f"UPDATE project_estimates SET {', '.join(sets)} WHERE id = %s", vals)
+                conn.commit()
+            return json_resp({"ok": True})
+    finally:
+        conn.close()
+
+
 def handle_project_chat(method, params, body):
     """Чат проекта: создание, участники, сообщения."""
     conn = get_db()
@@ -414,6 +460,8 @@ def handler(event: dict, context) -> dict:
         return handle_reorder(method, params, body)
     elif action == "templates":
         return handle_templates(method, params, body)
+    elif action == "estimates":
+        return handle_estimates(method, params, body)
     elif action == "project_chat":
         return handle_project_chat(method, params, body)
 

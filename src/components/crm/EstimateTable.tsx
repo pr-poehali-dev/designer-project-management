@@ -9,9 +9,11 @@ interface WorkItem {
 interface Template { id: number; name: string; item_count: number; }
 interface TemplateItem { name: string; quantity: number; unit: string; price: number; }
 
-export default function EstimateTable({ projectId, discountPercent }: {
-  projectId: number; discountPercent: number;
+export default function EstimateTable({ projectId, estimateId, discountPercent, vatMode = "none", vatRate = 20, title = "Смета", onUpdateTitle }: {
+  projectId: number; estimateId?: number; discountPercent: number;
+  vatMode?: string; vatRate?: number; title?: string; onUpdateTitle?: (name: string) => void;
 }) {
+  const [estTitle, setEstTitle] = useState(title);
   const [items, setItems] = useState<WorkItem[]>([]);
   const [savedItems, setSavedItems] = useState<string>("[]");
   const [templates, setTemplates] = useState<Template[]>([]);

@@ -152,9 +152,11 @@ def handler(event: dict, context) -> dict:
         except Exception as e:
             return {"statusCode": 200, "headers": CORS_HEADERS,
                     "body": json.dumps({"ok": False, "error": f"Avito API error: {str(e)}"})}
+        msgs = data.get("messages", [])
+        msgs.reverse()
         return {
             "statusCode": 200, "headers": CORS_HEADERS,
-            "body": json.dumps({"ok": True, "messages": data.get("messages", []), "user_id": user_id})
+            "body": json.dumps({"ok": True, "messages": msgs, "user_id": user_id})
         }
 
     # ── POST send ──────────────────────────────────────────────────────────────
@@ -205,15 +207,16 @@ def handler(event: dict, context) -> dict:
                 if not msgs:
                     continue
 
-                # Последнее сообщение должно быть от клиента (не от нас)
+                msgs.reverse()
+
                 last_msg = msgs[-1]
                 if last_msg.get("author_id") == user_id:
-                    continue  # Мы уже ответили
+                    continue
 
-                # Формируем историю для ChatGPT
                 history = []
                 for m in msgs:
-                    text = m.get("content", {}).get("text", {}).get("text", "")
+                    raw = m.get("content", {}).get("text", "")
+                    text = raw if isinstance(raw, str) else (raw.get("text", "") if isinstance(raw, dict) else "")
                     if not text:
                         continue
                     role = "assistant" if m.get("author_id") == user_id else "user"

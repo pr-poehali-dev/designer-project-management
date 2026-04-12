@@ -115,9 +115,13 @@ export default function ChatsPage() {
     }
   }, []);
 
+  const msgPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   useEffect(() => {
     if (!activeChat) return;
     loadMessages(activeChat.id);
+    msgPollRef.current = setInterval(() => loadMessages(activeChat.id, true), POLL_INTERVAL);
+    return () => { if (msgPollRef.current) clearInterval(msgPollRef.current); };
   }, [activeChat, loadMessages]);
 
   // ─── Send message ─────────────────────────────────────────────

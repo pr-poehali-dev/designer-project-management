@@ -35,7 +35,9 @@ export default function ProjectCard({ projectId, onBack }: { projectId: number; 
   const [newMember, setNewMember] = useState({ member_name: "", role: "" });
   const [generatingPdf, setGeneratingPdf] = useState(false);
   const [pdfUrl, setPdfUrl] = useState("");
-  const [showSendModal, setShowSendModal] = useState(false);
+  const [showKpModal, setShowKpModal] = useState(false);
+  const [kpStyle, setKpStyle] = useState("corporate");
+  const [kpIntro, setKpIntro] = useState("");
   const [sendChatId, setSendChatId] = useState("");
   const [sending, setSending] = useState(false);
   const [sendStatus, setSendStatus] = useState<"idle" | "ok" | "error">("idle");
@@ -87,11 +89,16 @@ export default function ProjectCard({ projectId, onBack }: { projectId: number; 
     } catch { /* ignore */ }
   };
 
-  const generatePdf = async () => {
+  const generatePdf = async (style?: string, intro?: string) => {
     setGeneratingPdf(true);
     setPdfUrl("");
     try {
-      const r = await fetch(`${PDF_API}?project_id=${projectId}`);
+      const s = style || kpStyle;
+      const r = await fetch(`${PDF_API}?project_id=${projectId}&style=${s}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ intro: intro ?? kpIntro }),
+      });
       const data = await r.json();
       if (data.ok) setPdfUrl(data.url);
     } catch { /* ignore */ } finally { setGeneratingPdf(false); }

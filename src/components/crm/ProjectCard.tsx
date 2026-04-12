@@ -44,6 +44,8 @@ export default function ProjectCard({ projectId, onBack }: { projectId: number; 
   const [savedProject, setSavedProject] = useState("");
   const [status, setStatus] = useState<"idle" | "saved" | "error">("idle");
   const [newMember, setNewMember] = useState({ member_name: "", role: "" });
+  const [clientLink, setClientLink] = useState("");
+  const [copyStatus, setCopyStatus] = useState<"idle" | "copied">("idle");
   const [generatingPdf, setGeneratingPdf] = useState(false);
   const [pdfUrl, setPdfUrl] = useState("");
   const [showKpModal, setShowKpModal] = useState(false);
@@ -134,6 +136,26 @@ export default function ProjectCard({ projectId, onBack }: { projectId: number; 
     } catch { setSendStatus("error"); } finally { setSending(false); }
   };
 
+  const getClientLink = async () => {
+    if (clientLink) {
+      navigator.clipboard.writeText(clientLink);
+      setCopyStatus("copied");
+      setTimeout(() => setCopyStatus("idle"), 2000);
+      return;
+    }
+    try {
+      const r = await fetch(`${API}?action=client_token&project_id=${projectId}`);
+      const data = await r.json();
+      if (data.ok) {
+        const link = `${window.location.origin}/client/${data.token}`;
+        setClientLink(link);
+        navigator.clipboard.writeText(link);
+        setCopyStatus("copied");
+        setTimeout(() => setCopyStatus("idle"), 2000);
+      }
+    } catch { /* ignore */ }
+  };
+
   if (loading) return <div className="flex justify-center py-20"><div className="w-5 h-5 border-2 border-ink/20 border-t-ink rounded-full animate-spin" /></div>;
   if (!project) return <div className="text-center py-20"><p className="text-sm text-ink-faint">Проект не найден</p><button onClick={onBack} className="text-sm text-ink font-medium hover:underline mt-2">Назад</button></div>;
 
@@ -167,6 +189,12 @@ export default function ProjectCard({ projectId, onBack }: { projectId: number; 
             className="text-lg font-semibold bg-transparent focus:outline-none focus:bg-snow rounded-lg px-2 py-1 -ml-2 w-full" />
           <p className="text-xs text-ink-faint ml-0.5">{project.client_name || "Клиент не выбран"}</p>
         </div>
+        <button onClick={getClientLink}
+          className="h-9 px-4 border border-snow-dark text-sm font-medium rounded-full hover:bg-snow transition-colors flex items-center gap-2 text-ink-muted">
+          {copyStatus === "copied"
+            ? <><Icon name="Check" size={15} className="text-green-600" /><span className="text-green-600">Скопировано</span></>
+            : <><Icon name="Link" size={15} /> Ссылка клиенту</>}
+        </button>
         <button onClick={() => setShowChat(true)}
           className="h-9 px-4 border border-snow-dark text-sm font-medium rounded-full hover:bg-snow transition-colors flex items-center gap-2 text-ink-muted">
           <Icon name="MessageSquare" size={15} /> Чат

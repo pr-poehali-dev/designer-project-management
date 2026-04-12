@@ -124,10 +124,12 @@ def handle_projects(method, params, body):
             return json_resp({"ok": True, "project": dict(project), "work_items": items, "team": team, "documents": docs})
 
         if method == "POST" and not project_id:
+            import secrets as _secrets
+            token = _secrets.token_hex(24)
             cur.execute(
-                "INSERT INTO projects (name, client_id, status, deadline, discount_percent) VALUES (%s, %s, %s, %s, %s) RETURNING id",
+                "INSERT INTO projects (name, client_id, status, deadline, discount_percent, client_token) VALUES (%s, %s, %s, %s, %s, %s) RETURNING id",
                 (body.get("name", ""), body.get("client_id"), body.get("status", "draft"),
-                 body.get("deadline") or None, body.get("discount_percent", 0))
+                 body.get("deadline") or None, body.get("discount_percent", 0), token)
             )
             conn.commit()
             return json_resp({"ok": True, "id": cur.fetchone()["id"]})
@@ -299,6 +301,107 @@ def handle_templates(method, params, body):
         conn.close()
 
 
+def handle_client_token(method, params, body):
+    """Получить или сгенерировать токен клиента для проекта."""
+    conn = get_db()
+    try:
+        import secrets as _secrets
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        project_id = params.get("project_id")
+        if not project_id:
+            return json_resp({"ok": False, "error": "project_id required"}, 400)
+        cur.execute("SELECT client_token FROM projects WHERE id = %s", (project_id,))
+        row = cur.fetchone()
+        if not row:
+            return json_resp({"ok": False, "error": "Not found"}, 404)
+        token = row["client_token"]
+        if not token:
+            token = _secrets.token_hex(24)
+            cur.execute("UPDATE projects SET client_token = %s WHERE id = %s", (token, project_id))
+            conn.commit()
+        return json_resp({"ok": True, "token": token})
+    finally:
+        conn.close()
+
+
+def handle_client_view(method, params, body):
+    """Публичный endpoint для клиента — только по токену, без авторизации."""
+    conn = get_db()
+    try:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        token = params.get("token")
+        if not token:
+            return json_resp({"ok": False, "error": "token required"}, 400)
+
+        cur.execute("""
+            SELECT p.id, p.name, p.status, p.deadline, p.discount_percent, p.vat_mode, p.vat_rate,
+                   c.name as client_name, c.contact_person, c.phone, c.email
+            FROM projects p LEFT JOIN clients c ON c.id = p.client_id
+            WHERE p.client_token = %s
+        """, (token,))
+        project = cur.fetchone()
+        if not project:
+            return json_resp({"ok": False, "error": "Not found"}, 404)
+
+        project_id = project["id"]
+
+        cur.execute("""
+            SELECT id, name, quantity, unit, price, sort_order
+            FROM work_items WHERE project_id = %s AND sort_order >= 0 ORDER BY sort_order, id
+        """, (project_id,))
+        items = [dict(r) for r in cur.fetchall()]
+
+        cur.execute("""
+            SELECT e.id, e.name, e.discount_percent, e.vat_mode, e.vat_rate
+            FROM project_estimates e WHERE e.project_id = %s ORDER BY e.sort_order, e.id
+        """, (project_id,))
+        estimates_raw = [dict(r) for r in cur.fetchall()]
+        estimates = []
+        for est in estimates_raw:
+            cur.execute("SELECT id, name, quantity, unit, price FROM work_items WHERE estimate_id = %s AND sort_order >= 0 ORDER BY sort_order, id", (est["id"],))
+            est["items"] = [dict(r) for r in cur.fetchall()]
+            estimates.append(est)
+
+        cur.execute("SELECT * FROM project_chats WHERE project_id = %s", (project_id,))
+        chat = cur.fetchone()
+        chat_id = None
+        members = []
+        messages = []
+        if chat:
+            chat_id = chat["id"]
+            cur.execute("SELECT * FROM project_chat_members WHERE chat_id = %s ORDER BY id", (chat_id,))
+            members = [dict(r) for r in cur.fetchall()]
+            cur.execute("SELECT * FROM project_chat_messages WHERE chat_id = %s ORDER BY created_at ASC", (chat_id,))
+            messages = [dict(r) for r in cur.fetchall()]
+
+        if method == "POST" and params.get("sub") == "message":
+            if not chat_id:
+                return json_resp({"ok": False, "error": "Chat not found"}, 404)
+            text = body.get("text", "").strip()
+            author_name = body.get("author_name", "Клиент")
+            if not text:
+                return json_resp({"ok": False, "error": "text required"}, 400)
+            cur.execute(
+                "INSERT INTO project_chat_messages (chat_id, author_name, author_role, text) VALUES (%s,%s,'client',%s) RETURNING *",
+                (chat_id, author_name, text)
+            )
+            msg = dict(cur.fetchone())
+            conn.commit()
+            return json_resp({"ok": True, "message": msg})
+
+        return json_resp({
+            "ok": True,
+            "project": dict(project),
+            "items": items,
+            "estimates": estimates,
+            "chat": {"id": chat_id} if chat_id else None,
+            "members": members,
+            "messages": messages,
+        }, default=str)
+    finally:
+        conn.close()
+
+
 def handle_estimates(method, params, body):
     conn = get_db()
     try:
@@ -464,5 +567,9 @@ def handler(event: dict, context) -> dict:
         return handle_estimates(method, params, body)
     elif action == "project_chat":
         return handle_project_chat(method, params, body)
+    elif action == "client_view":
+        return handle_client_view(method, params, body)
+    elif action == "client_token":
+        return handle_client_token(method, params, body)
 
     return json_resp({"ok": False, "error": f"Unknown action: {action}"}, 400)

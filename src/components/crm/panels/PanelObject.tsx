@@ -48,18 +48,20 @@ export default function PanelObject({
     <div className="space-y-6">
       {/* Основные данные */}
       <div className="space-y-4">
-        <Field label="Название объекта">
-          <input className={inputCls} value={project.name}
-            onChange={e => up("name", e.target.value)} onBlur={onSave} />
-        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Название объекта">
+            <input className={inputCls} value={project.name}
+              onChange={e => up("name", e.target.value)} onBlur={onSave} />
+          </Field>
 
-        <Field label="Клиент">
-          <select className={inputCls} value={project.client_id ?? ""}
-            onChange={e => { up("client_id" as keyof ProjectData, e.target.value); setTimeout(onSave, 100); }}>
-            <option value="">Не выбран</option>
-            {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-        </Field>
+          <Field label="Клиент">
+            <select className={inputCls} value={project.client_id ?? ""}
+              onChange={e => { up("client_id" as keyof ProjectData, e.target.value); setTimeout(onSave, 100); }}>
+              <option value="">Не выбран</option>
+              {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </Field>
+        </div>
 
         <Field label="Адрес объекта">
           <input className={inputCls} placeholder="ул. Пушкина, д. 1, кв. 23" value={project.object_address || ""}

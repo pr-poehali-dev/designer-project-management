@@ -78,6 +78,12 @@ export default function AIAssistant({ currentPage, currentProjectName, onNavigat
     if (action.action === "open_project" && action.project_id && onOpenProject) onOpenProject(action.project_id as number);
   }, [onNavigate, onOpenProject]);
 
+  const voiceModeRef = useRef(voiceMode);
+  useEffect(() => { voiceModeRef.current = voiceMode; }, [voiceMode]);
+
+  const micLockedRef = useRef(micLocked);
+  useEffect(() => { micLockedRef.current = micLocked; }, [micLocked]);
+
   const sendMessage = useCallback(async (text: string, withVoice = false) => {
     if (!text.trim() || loading) return;
     const userMsg: Message = { role: "user", content: text };
@@ -85,7 +91,8 @@ export default function AIAssistant({ currentPage, currentProjectName, onNavigat
     setMessages(newMessages);
     setInput("");
     setLoading(true);
-    if (withVoice) setMicState("processing");
+    const speak = withVoice || voiceModeRef.current;
+    if (speak) setMicState("processing");
 
     try {
       const r = await fetch(`${AI_API}?action=chat`, {
@@ -94,27 +101,35 @@ export default function AIAssistant({ currentPage, currentProjectName, onNavigat
         body: JSON.stringify({
           messages: newMessages.map(m => ({ role: m.role, content: m.content })),
           context: { page: currentPage, project_name: currentProjectName },
-          with_voice: withVoice,
         }),
       });
       const data = await r.json();
       if (data.ok) {
-        const replyMsg: Message = {
+        setMessages(prev => [...prev, {
           role: "assistant",
           content: data.reply,
           isAction: !!data.action || !!data.executed,
-        };
-        setMessages(prev => [...prev, replyMsg]);
+        }]);
         if (data.action) handleClientAction(data.action);
         if (data.executed?.ok && onRefresh) setTimeout(() => onRefresh(), 500);
 
-        // Воспроизводим голос
-        if (withVoice && data.audio) {
+        // TTS — отдельный запрос после показа текста
+        if (speak && data.reply) {
+          setLoading(false);
           setMicState("speaking");
-          await playAudio(data.audio);
+          try {
+            const ttsR = await fetch(`${AI_API}?action=tts`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ text: data.reply }),
+            });
+            const ttsData = await ttsR.json();
+            if (ttsData.ok && ttsData.audio) {
+              await playAudio(ttsData.audio);
+            }
+          } catch { /* ignore tts errors */ }
           setMicState("idle");
-          // Если режим залочен — сразу начинаем слушать снова
-          if (micLocked) startListening(true);
+          return; // loading уже false
         } else {
           setMicState("idle");
         }
@@ -125,7 +140,7 @@ export default function AIAssistant({ currentPage, currentProjectName, onNavigat
     } finally {
       setLoading(false);
     }
-  }, [messages, loading, currentPage, currentProjectName, handleClientAction, onRefresh, micLocked]);
+  }, [messages, loading, currentPage, currentProjectName, handleClientAction, onRefresh]);
 
   // ── VAD: определяем тишину после речи ──
   const startVAD = (stream: MediaStream) => {

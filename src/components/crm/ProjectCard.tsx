@@ -5,7 +5,7 @@ import ProjectCardKpModal from "./ProjectCardKpModal";
 import ProjectCardSettings from "./ProjectCardSettings";
 import ProjectCardTabs from "./ProjectCardTabs";
 import {
-  API, PDF_API,
+  API, PDF_API, DOC_API,
   Tab, ProjectData, Estimate, TeamMember, ClientShort,
   Brief, Reference, ProjectDoc, Payment,
   BRIEF_EMPTY,
@@ -33,6 +33,8 @@ export default function ProjectCard({ projectId, onBack }: { projectId: number; 
   const [sending, setSending] = useState(false);
   const [sendStatus, setSendStatus] = useState<"idle" | "ok" | "error">("idle");
   const [addingEstimate, setAddingEstimate] = useState(false);
+  const [generatingDoc, setGeneratingDoc] = useState(false);
+  const [docUrl, setDocUrl] = useState("");
 
   // Brief
   const [brief, setBrief] = useState<Brief>(BRIEF_EMPTY);
@@ -120,6 +122,21 @@ export default function ProjectCard({ projectId, onBack }: { projectId: number; 
       await fetch(`${API}?action=team&id=${id}`, { method: "DELETE" });
       setTeam(prev => prev.filter(m => m.id !== id));
     } catch { /* ignore */ }
+  };
+
+  const generateDoc = async () => {
+    setGeneratingDoc(true); setDocUrl("");
+    try {
+      const r = await fetch(`${DOC_API}?action=generate`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ project_id: projectId, template_id: 1 }),
+      });
+      const data = await r.json();
+      if (data.ok) {
+        setDocUrl(data.url);
+        window.open(data.url, "_blank");
+      }
+    } catch { /* ignore */ } finally { setGeneratingDoc(false); }
   };
 
   const generatePdf = async () => {
@@ -288,6 +305,13 @@ export default function ProjectCard({ projectId, onBack }: { projectId: number; 
         <button onClick={() => setShowChat(true)}
           className="h-9 px-4 border border-snow-dark text-sm font-medium rounded-full hover:bg-snow transition-colors flex items-center gap-2 text-ink-muted">
           <Icon name="MessageSquare" size={15} /> Чат
+        </button>
+        <button onClick={generateDoc} disabled={generatingDoc}
+          className="h-9 px-4 border border-snow-dark text-sm font-medium rounded-full hover:bg-snow transition-colors flex items-center gap-2 text-ink-muted disabled:opacity-50">
+          {generatingDoc
+            ? <div className="w-3.5 h-3.5 border-2 border-ink/20 border-t-ink rounded-full animate-spin" />
+            : <Icon name="FileText" size={15} />}
+          Договор
         </button>
         <button onClick={() => { setShowKpModal(true); setPdfUrl(""); setSendStatus("idle"); }}
           className="h-9 px-4 bg-ink text-white text-sm font-medium rounded-full hover:bg-ink-light transition-colors flex items-center gap-2">

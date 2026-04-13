@@ -36,3 +36,4 @@ export const BRIEF_EMPTY: Brief = {
 
 export const API = "https://functions.poehali.dev/21fcd16a-d247-4b03-8505-0be9497f8386";
 export const PDF_API = "https://functions.poehali.dev/79538cf9-12ec-42f3-9e60-aaf7a9edfba2";
+export const DOC_API = "https://functions.poehali.dev/b70e27b9-0603-4f64-a12d-ff1869cca1b0";

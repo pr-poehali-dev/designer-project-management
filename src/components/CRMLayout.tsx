@@ -42,6 +42,7 @@ export default function CRMLayout({ onLogout }: Props) {
   const [userPosition, setUserPosition] = useState("");
   const [openProjectId, setOpenProjectId] = useState<number | null>(null);
   const [openChatWith, setOpenChatWith] = useState<{ name: string; initials: string; avatar_url?: string } | null>(null);
+  const [chatUnread, setChatUnread] = useState(0);
 
   const loadProfile = useCallback(async () => {
     try {
@@ -56,6 +57,20 @@ export default function CRMLayout({ onLogout }: Props) {
 
   useEffect(() => { loadProfile(); }, [loadProfile]);
   useEffect(() => { if (active === "profile") loadProfile(); }, [active, loadProfile]);
+
+  const CRM_API = "https://functions.poehali.dev/21fcd16a-d247-4b03-8505-0be9497f8386";
+  useEffect(() => {
+    const fetchUnread = async () => {
+      try {
+        const r = await fetch(`${CRM_API}?action=client_messages_unread`);
+        const data = await r.json();
+        if (data.ok) setChatUnread(Number(data.unread) || 0);
+      } catch { /* ignore */ }
+    };
+    fetchUnread();
+    const iv = setInterval(fetchUnread, 30000);
+    return () => clearInterval(iv);
+  }, []);
 
   const renderPage = () => {
     switch (active) {
@@ -109,8 +124,20 @@ export default function CRMLayout({ onLogout }: Props) {
                 active === item.id ? "active" : "text-ink-muted hover:text-ink hover:bg-snow"
               }`}
             >
-              <Icon name={item.icon} fallback="Circle" size={16} className="shrink-0" />
-              {!collapsed && <span>{item.label}</span>}
+              <div className="relative shrink-0">
+                <Icon name={item.icon} fallback="Circle" size={16} />
+                {item.id === "chats" && chatUnread > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 rounded-full bg-amber-500 text-white text-[8px] font-bold flex items-center justify-center">
+                    {chatUnread > 9 ? "9+" : chatUnread}
+                  </span>
+                )}
+              </div>
+              {!collapsed && <span className="flex-1">{item.label}</span>}
+              {!collapsed && item.id === "chats" && chatUnread > 0 && (
+                <span className="w-5 h-5 rounded-full bg-amber-500 text-white text-[9px] font-bold flex items-center justify-center shrink-0">
+                  {chatUnread > 9 ? "9+" : chatUnread}
+                </span>
+              )}
             </button>
           ))}
         </nav>

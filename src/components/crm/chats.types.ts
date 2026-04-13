@@ -1,4 +1,15 @@
 export const AVITO_API = "https://functions.poehali.dev/976899aa-03a4-4f5c-9700-e57aa8f2113a";
+export const CRM_API = "https://functions.poehali.dev/21fcd16a-d247-4b03-8505-0be9497f8386";
+
+export interface ClientChatItem {
+  id: number;
+  name: string;
+  contact_person: string;
+  phone: string;
+  unread: number;
+  last_message: string | null;
+  last_message_at: string | null;
+}
 export const POLL_INTERVAL = 30_000;
 export const AUTOPILOT_INTERVAL = 40_000;
 

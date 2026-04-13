@@ -535,6 +535,63 @@ def handle_clients_list_short(method, params, body):
         conn.close()
 
 
+def handle_client_messages(method, params, body):
+    conn = get_db()
+    try:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        client_id = params.get("client_id") or body.get("client_id")
+
+        if method == "GET" and client_id:
+            cur.execute(
+                "UPDATE client_messages SET is_read = TRUE WHERE client_id = %s AND from_me = FALSE AND is_read = FALSE",
+                (client_id,)
+            )
+            conn.commit()
+            cur.execute(
+                "SELECT * FROM client_messages WHERE client_id = %s ORDER BY created_at ASC",
+                (client_id,)
+            )
+            return json_resp({"ok": True, "messages": [dict(r) for r in cur.fetchall()]})
+
+        if method == "GET" and not client_id:
+            cur.execute("""
+                SELECT c.id, c.name, c.contact_person, c.phone,
+                    (SELECT COUNT(*) FROM client_messages m WHERE m.client_id = c.id AND m.from_me = FALSE AND m.is_read = FALSE) as unread,
+                    (SELECT text FROM client_messages m WHERE m.client_id = c.id ORDER BY m.created_at DESC LIMIT 1) as last_message,
+                    (SELECT created_at FROM client_messages m WHERE m.client_id = c.id ORDER BY m.created_at DESC LIMIT 1) as last_message_at
+                FROM clients c
+                ORDER BY last_message_at DESC NULLS LAST, c.created_at DESC
+            """)
+            return json_resp({"ok": True, "clients": [dict(r) for r in cur.fetchall()]})
+
+        if method == "POST":
+            text = body.get("text", "").strip()
+            from_me = body.get("from_me", True)
+            if not client_id or not text:
+                return json_resp({"ok": False, "error": "client_id and text required"}, 400)
+            cur.execute(
+                "INSERT INTO client_messages (client_id, from_me, text) VALUES (%s, %s, %s) RETURNING *",
+                (client_id, from_me, text)
+            )
+            msg = dict(cur.fetchone())
+            conn.commit()
+            return json_resp({"ok": True, "message": msg})
+
+    finally:
+        conn.close()
+
+
+def handle_client_messages_unread(method, params, body):
+    conn = get_db()
+    try:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("SELECT COUNT(*) as total FROM client_messages WHERE from_me = FALSE AND is_read = FALSE")
+        row = cur.fetchone()
+        return json_resp({"ok": True, "unread": row["total"] if row else 0})
+    finally:
+        conn.close()
+
+
 def handler(event: dict, context) -> dict:
     """CRUD API для клиентов, проектов, видов работ, заметок."""
     if event.get("httpMethod") == "OPTIONS":
@@ -571,5 +628,9 @@ def handler(event: dict, context) -> dict:
         return handle_client_view(method, params, body)
     elif action == "client_token":
         return handle_client_token(method, params, body)
+    elif action == "client_messages":
+        return handle_client_messages(method, params, body)
+    elif action == "client_messages_unread":
+        return handle_client_messages_unread(method, params, body)
 
     return json_resp({"ok": False, "error": f"Unknown action: {action}"}, 400)

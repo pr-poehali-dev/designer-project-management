@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
-  AVITO_API, POLL_INTERVAL, AUTOPILOT_INTERVAL,
+  AVITO_API, CRM_API, POLL_INTERVAL, AUTOPILOT_INTERVAL,
   AvitoChat, AvitoMessage, AutopilotLogEntry,
-  INTERNAL_CHATS,
+  INTERNAL_CHATS, ClientChatItem,
 } from "./chats.types";
 import ChatsSidebar from "./ChatsSidebar";
 import AvitoMessagePanel from "./AvitoMessagePanel";
 import InternalMessagePanel from "./InternalMessagePanel";
+import ClientMessagePanel from "./ClientMessagePanel";
 import AutopilotTraining from "./AutopilotTraining";
 
 interface Props {
@@ -15,7 +16,13 @@ interface Props {
 }
 
 export default function ChatsPage({ openChatWith, onChatOpened }: Props) {
-  const [tab, setTab] = useState<"avito" | "internal" | "training">("avito");
+  const [tab, setTab] = useState<"avito" | "internal" | "clients" | "training">("avito");
+
+  // Client chats state
+  const [clientChats, setClientChats] = useState<ClientChatItem[]>([]);
+  const [loadingClientChats, setLoadingClientChats] = useState(false);
+  const [activeClientChat, setActiveClientChat] = useState<ClientChatItem | null>(null);
+  const [totalClientUnread, setTotalClientUnread] = useState(0);
 
   // Avito state
   const [chats, setChats] = useState<AvitoChat[]>([]);
@@ -63,6 +70,28 @@ export default function ChatsPage({ openChatWith, onChatOpened }: Props) {
   useEffect(() => {
     loadInternalChats();
   }, [loadInternalChats]);
+
+  const loadClientChats = useCallback(async () => {
+    setLoadingClientChats(true);
+    try {
+      const r = await fetch(`${CRM_API}?action=client_messages`);
+      const data = await r.json();
+      if (data.ok) {
+        setClientChats(data.clients || []);
+        const unread = (data.clients || []).reduce((s: number, c: ClientChatItem) => s + (Number(c.unread) || 0), 0);
+        setTotalClientUnread(unread);
+        if (data.clients?.length > 0 && !activeClientChat) {
+          setActiveClientChat(data.clients[0]);
+        }
+      }
+    } catch { /* ignore */ } finally { setLoadingClientChats(false); }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    loadClientChats();
+    const iv = setInterval(loadClientChats, POLL_INTERVAL);
+    return () => clearInterval(iv);
+  }, [loadClientChats]);
 
   useEffect(() => {
     if (!openChatWith) return;
@@ -226,6 +255,7 @@ export default function ChatsPage({ openChatWith, onChatOpened }: Props) {
           tab={tab}
           setTab={setTab}
           totalUnread={totalUnread}
+          totalClientUnread={totalClientUnread}
           autopilot={autopilot}
           setAutopilot={setAutopilot}
           autopilotRunning={autopilotRunning}
@@ -240,6 +270,10 @@ export default function ChatsPage({ openChatWith, onChatOpened }: Props) {
           internalChats={internalChats}
           activeInternal={activeInternal}
           setActiveInternal={setActiveInternal}
+          clientChats={clientChats}
+          loadingClientChats={loadingClientChats}
+          activeClientChat={activeClientChat}
+          setActiveClientChat={(c) => { setActiveClientChat(c); }}
         />
 
         <div className="flex-1 flex flex-col min-w-0">
@@ -257,6 +291,14 @@ export default function ChatsPage({ openChatWith, onChatOpened }: Props) {
               loadMessages={loadMessages}
               autopilotLog={autopilotLog}
             />
+          )}
+          {tab === "clients" && activeClientChat && (
+            <ClientMessagePanel activeClient={activeClientChat} />
+          )}
+          {tab === "clients" && !activeClientChat && (
+            <div className="flex-1 flex items-center justify-center text-ink-faint text-sm">
+              Выберите клиента
+            </div>
           )}
           {tab === "internal" && (
             <InternalMessagePanel activeInternal={activeInternal} />

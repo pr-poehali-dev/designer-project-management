@@ -68,7 +68,13 @@ export default function PanelObject({
             onChange={e => up("object_address", e.target.value)} onBlur={onSave} />
         </Field>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-3 gap-3">
+          <Field label="Тип объекта">
+            <select className={inputCls} value={project.object_type || ""}
+              onChange={e => { up("object_type", e.target.value); setTimeout(onSave, 100); }}>
+              {OBJECT_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+            </select>
+          </Field>
           <Field label="Площадь, м²">
             <input className={inputCls} placeholder="85" type="number" value={project.object_area || ""}
               onChange={e => up("object_area", e.target.value)} onBlur={onSave} />
@@ -78,13 +84,6 @@ export default function PanelObject({
               onChange={e => up("project_duration", e.target.value)} onBlur={onSave} />
           </Field>
         </div>
-
-        <Field label="Тип объекта">
-          <select className={inputCls} value={project.object_type || ""}
-            onChange={e => { up("object_type", e.target.value); setTimeout(onSave, 100); }}>
-            {OBJECT_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
-          </select>
-        </Field>
 
         <Field label="Комментарии к объекту">
           <textarea className={`${inputCls} resize-none`} rows={3}

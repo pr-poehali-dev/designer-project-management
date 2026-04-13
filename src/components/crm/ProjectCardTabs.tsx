@@ -1,7 +1,7 @@
 import { useRef } from "react";
 import Icon from "@/components/ui/icon";
 import EstimateTable from "./EstimateTable";
-import { Tab, ProjectData, Estimate, TeamMember, Brief, ProjectDoc, Payment, Reference, API } from "./ProjectCardTypes";
+import { Tab, ProjectData, Estimate, Brief, ProjectDoc, Payment, Reference, API } from "./ProjectCardTypes";
 
 interface Props {
   tab: Tab;
@@ -13,12 +13,6 @@ interface Props {
   estimates: Estimate[];
   addingEstimate: boolean;
   onAddEstimate: () => void;
-
-  // Team
-  team: TeamMember[];
-  newMember: { member_name: string; role: string };
-  setNewMember: (fn: (p: { member_name: string; role: string }) => { member_name: string; role: string }) => void;
-  onAddMember: () => void;
 
   // Brief
   brief: Brief;
@@ -54,7 +48,6 @@ interface Props {
 export default function ProjectCardTabs({
   tab, setTab, projectId, project,
   estimates, addingEstimate, onAddEstimate,
-  team, newMember, setNewMember, onAddMember,
   brief, briefSaved, briefLoaded, savingBrief, setBrief, onSaveBrief,
   documents, uploadingDoc, onDocUpload,
   payments, payTotal, payPaid, newPayment, setNewPayment, addingPayment, onAddPayment, onTogglePayment,
@@ -70,7 +63,6 @@ export default function ProjectCardTabs({
       <div className="flex gap-1 mb-6 bg-white rounded-full p-1 border border-snow-dark flex-wrap">
         {([
           { id: "estimates"  as Tab, label: "Сметы",     icon: "Calculator" },
-          { id: "team"       as Tab, label: "Команда",   icon: "Users" },
           { id: "brief"      as Tab, label: "Бриф",      icon: "ClipboardList" },
           { id: "documents"  as Tab, label: "Документы", icon: "Paperclip" },
           { id: "payments"   as Tab, label: "Платежи",   icon: "CreditCard" },
@@ -88,9 +80,6 @@ export default function ProjectCardTabs({
         <div className="space-y-6">
           <EstimateTable
             projectId={projectId}
-            discountPercent={project.discount_percent || 0}
-            vatMode={project.vat_mode}
-            vatRate={project.vat_rate || 20}
             title="Основная смета"
           />
           {estimates.map(est => (
@@ -98,9 +87,6 @@ export default function ProjectCardTabs({
               key={est.id}
               projectId={projectId}
               estimateId={est.id}
-              discountPercent={est.discount_percent || 0}
-              vatMode={est.vat_mode || project.vat_mode}
-              vatRate={est.vat_rate || project.vat_rate || 20}
               title={est.name}
               onUpdateTitle={(name) => {
                 fetch(`${API}?action=estimates&id=${est.id}`, {
@@ -117,28 +103,7 @@ export default function ProjectCardTabs({
         </div>
       )}
 
-      {/* ── КОМАНДА ── */}
-      {tab === "team" && (
-        <div className="space-y-4">
-          <div className="card-surface rounded-xl p-4 flex gap-3">
-            <input value={newMember.member_name} onChange={e => setNewMember(p => ({ ...p, member_name: e.target.value }))}
-              placeholder="Имя сотрудника" className="flex-1 bg-snow border border-snow-dark rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ink/10" />
-            <input value={newMember.role} onChange={e => setNewMember(p => ({ ...p, role: e.target.value }))}
-              placeholder="Роль" className="w-40 bg-snow border border-snow-dark rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ink/10" />
-            <button onClick={onAddMember} disabled={!newMember.member_name.trim()}
-              className="px-4 py-2.5 bg-ink text-white text-sm font-medium rounded-xl hover:bg-ink-light transition-colors disabled:opacity-40">Добавить</button>
-          </div>
-          {team.length === 0
-            ? <div className="text-center py-12"><Icon name="Users" size={28} className="text-ink-faint mx-auto mb-2" /><p className="text-sm text-ink-faint">Команда не назначена</p></div>
-            : team.map(m => (
-              <div key={m.id} className="card-surface rounded-xl p-4 flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-ink flex items-center justify-center text-white text-xs font-bold">{m.member_name.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase()}</div>
-                <div><p className="text-sm font-medium">{m.member_name}</p><p className="text-xs text-ink-faint">{m.role}</p></div>
-              </div>
-            ))
-          }
-        </div>
-      )}
+
 
       {/* ── БРИФ ── */}
       {tab === "brief" && (

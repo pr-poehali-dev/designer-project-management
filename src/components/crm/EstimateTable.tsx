@@ -4,9 +4,8 @@ import { API, WorkItem, Template, TemplateItem } from "./estimate/EstimateTypes"
 import EstimateTemplates from "./estimate/EstimateTemplates";
 import EstimateItemsTable from "./estimate/EstimateItemsTable";
 
-export default function EstimateTable({ projectId, estimateId, discountPercent, vatMode = "none", vatRate = 20, title = "Смета", onUpdateTitle }: {
-  projectId: number; estimateId?: number; discountPercent: number;
-  vatMode?: string; vatRate?: number; title?: string; onUpdateTitle?: (name: string) => void;
+export default function EstimateTable({ projectId, estimateId, title = "Смета", onUpdateTitle }: {
+  projectId: number; estimateId?: number; title?: string; onUpdateTitle?: (name: string) => void;
 }) {
   const [estTitle, setEstTitle] = useState(title);
   const [items, setItems] = useState<WorkItem[]>([]);
@@ -23,6 +22,9 @@ export default function EstimateTable({ projectId, estimateId, discountPercent, 
   const [saveStatus, setSaveStatus] = useState<"idle" | "saved" | "error">("idle");
   const [isApproved, setIsApproved] = useState(false);
   const [approvingEstimate, setApprovingEstimate] = useState(false);
+  const [discountPercent, setDiscountPercent] = useState(0);
+  const [vatMode, setVatMode] = useState("none");
+  const [vatRate, setVatRate] = useState(20);
 
   const dragItem = useRef<number | null>(null);
   const dragOver = useRef<number | null>(null);
@@ -33,11 +35,14 @@ export default function EstimateTable({ projectId, estimateId, discountPercent, 
         const r = await fetch(`${API}?action=estimates&project_id=${projectId}`);
         const data = await r.json();
         if (data.ok) {
-          const est = (data.estimates || []).find((e: { id: number; is_approved: boolean }) => e.id === estimateId);
+          const est = (data.estimates || []).find((e: { id: number; is_approved: boolean; discount_percent: number; vat_mode: string; vat_rate: number }) => e.id === estimateId);
           const loaded = est?.items || [];
           setItems(loaded);
           setSavedItems(JSON.stringify(loaded.map((i: WorkItem) => ({ id: i.id, name: i.name, quantity: i.quantity, unit: i.unit, price: i.price }))));
           setIsApproved(est?.is_approved || false);
+          setDiscountPercent(Number(est?.discount_percent) || 0);
+          setVatMode(est?.vat_mode || "none");
+          setVatRate(Number(est?.vat_rate) || 20);
         }
       } else {
         const r = await fetch(`${API}?action=projects&id=${projectId}`);
@@ -47,10 +52,29 @@ export default function EstimateTable({ projectId, estimateId, discountPercent, 
           setItems(loaded);
           setSavedItems(JSON.stringify(loaded.map((i: WorkItem) => ({ id: i.id, name: i.name, quantity: i.quantity, unit: i.unit, price: i.price }))));
           setIsApproved(data.project?.main_estimate_approved || false);
+          setDiscountPercent(Number(data.project?.discount_percent) || 0);
+          setVatMode(data.project?.vat_mode || "none");
+          setVatRate(Number(data.project?.vat_rate) || 20);
         }
       }
     } catch { /* ignore */ }
   }, [projectId, estimateId]);
+
+  const saveDiscountVat = async (disc: number, vm: string, vr: number) => {
+    try {
+      if (estimateId) {
+        await fetch(`${API}?action=estimates&id=${estimateId}`, {
+          method: "PUT", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ discount_percent: disc, vat_mode: vm, vat_rate: vr }),
+        });
+      } else {
+        await fetch(`${API}?action=projects&id=${projectId}`, {
+          method: "PUT", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ discount_percent: disc, vat_mode: vm, vat_rate: vr }),
+        });
+      }
+    } catch { /* ignore */ }
+  };
 
   const toggleApprove = async () => {
     setApprovingEstimate(true);
@@ -352,6 +376,35 @@ export default function EstimateTable({ projectId, estimateId, discountPercent, 
         removeTplItem={removeTplItem}
         saveEditTemplate={saveEditTemplate}
       />
+
+      {/* Скидка и НДС */}
+      <div className="flex flex-wrap items-end gap-4 p-4 bg-snow rounded-xl border border-snow-dark">
+        <div>
+          <label className="text-xs text-ink-muted font-medium mb-1 block">Скидка, %</label>
+          <input type="number" min={0} max={100} value={discountPercent}
+            onChange={e => setDiscountPercent(Number(e.target.value))}
+            onBlur={() => saveDiscountVat(discountPercent, vatMode, vatRate)}
+            className="w-24 bg-white border border-snow-dark rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ink/10" />
+        </div>
+        <div>
+          <label className="text-xs text-ink-muted font-medium mb-1 block">НДС</label>
+          <select value={vatMode} onChange={e => { setVatMode(e.target.value); saveDiscountVat(discountPercent, e.target.value, vatRate); }}
+            className="bg-white border border-snow-dark rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ink/10">
+            <option value="none">Без НДС</option>
+            <option value="included">В т.ч. НДС</option>
+            <option value="added">Сверх суммы</option>
+          </select>
+        </div>
+        {vatMode !== "none" && (
+          <div>
+            <label className="text-xs text-ink-muted font-medium mb-1 block">Ставка НДС, %</label>
+            <input type="number" min={0} max={100} value={vatRate}
+              onChange={e => setVatRate(Number(e.target.value))}
+              onBlur={() => saveDiscountVat(discountPercent, vatMode, vatRate)}
+              className="w-24 bg-white border border-snow-dark rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ink/10" />
+          </div>
+        )}
+      </div>
 
       <EstimateItemsTable
         items={items}

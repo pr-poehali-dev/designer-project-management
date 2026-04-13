@@ -339,10 +339,6 @@ export default function ProjectCard({ projectId, onBack }: { projectId: number; 
         estimates={estimates}
         addingEstimate={addingEstimate}
         onAddEstimate={addEstimate}
-        team={team}
-        newMember={newMember}
-        setNewMember={setNewMember}
-        onAddMember={addMember}
         brief={brief}
         briefSaved={briefSaved}
         briefLoaded={briefLoaded}

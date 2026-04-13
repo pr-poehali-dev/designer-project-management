@@ -1,0 +1,21 @@
+{
+  "tests": [
+    {
+      "name": "List all tasks",
+      "method": "GET",
+      "path": "/",
+      "expectedStatus": 200,
+      "expectedBody": {"ok": true},
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Create task",
+      "method": "POST",
+      "path": "/",
+      "body": {"title": "Тестовая задача", "type": "personal", "priority": "medium", "created_by": "Тест"},
+      "expectedStatus": 200,
+      "expectedBody": {"ok": true},
+      "bodyMatcher": "partial"
+    }
+  ]
+}

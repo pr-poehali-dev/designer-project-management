@@ -11,6 +11,7 @@ import ChatsPage from "@/components/crm/ChatsPage";
 import ProfilePage from "@/components/crm/ProfilePage";
 import CompanyPage from "@/components/crm/CompanyPage";
 import GuildPage from "@/components/crm/GuildPage";
+import TasksPage from "@/components/crm/TasksPage";
 
 interface Props {
   onLogout: () => void;
@@ -25,6 +26,7 @@ const NAV_ITEMS = [
   { id: "contracts", label: "Шаблоны", icon: "FileText" },
   { id: "marketing", label: "Маркетинг", icon: "Megaphone" },
   { id: "chats", label: "Чаты", icon: "MessageSquare" },
+  { id: "tasks", label: "Задачи", icon: "CheckSquare" },
 ];
 
 const BOTTOM_NAV = [
@@ -82,6 +84,7 @@ export default function CRMLayout({ onLogout }: Props) {
       case "contracts": return <ContractsPage />;
       case "marketing": return <MarketingPage />;
       case "chats": return <ChatsPage openChatWith={openChatWith} onChatOpened={() => setOpenChatWith(null)} />;
+      case "tasks": return <TasksPage />;
       case "profile": return <ProfilePage />;
       case "company": return <CompanyPage />;
       case "guild": return (

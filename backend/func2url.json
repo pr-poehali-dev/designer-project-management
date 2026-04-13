@@ -1,4 +1,5 @@
 {
+  "tasks": "https://functions.poehali.dev/bb906e76-a34b-4cb8-9312-650654427354",
   "generate-doc": "https://functions.poehali.dev/b70e27b9-0603-4f64-a12d-ff1869cca1b0",
   "client-auth": "https://functions.poehali.dev/6939c14f-545b-476e-9041-fb66c4517ab0",
   "generate-pdf": "https://functions.poehali.dev/79538cf9-12ec-42f3-9e60-aaf7a9edfba2",

@@ -772,7 +772,7 @@ def handle_payments(method, params, body):
                 SELECT COALESCE(SUM(wi.quantity * wi.price), 0) as subtotal,
                        e.discount_percent, e.vat_mode, e.vat_rate
                 FROM project_estimates e
-                LEFT JOIN work_items wi ON wi.estimate_id = e.id
+                LEFT JOIN work_items wi ON wi.estimate_id = e.id AND wi.sort_order >= 0
                 WHERE e.project_id = %s AND e.is_approved = TRUE
                 GROUP BY e.id, e.discount_percent, e.vat_mode, e.vat_rate
             """, (project_id,))
@@ -791,7 +791,7 @@ def handle_payments(method, params, body):
             cur.execute("SELECT main_estimate_approved, discount_percent, vat_mode, vat_rate FROM projects WHERE id = %s", (project_id,))
             proj = cur.fetchone()
             if proj and proj["main_estimate_approved"]:
-                cur.execute("SELECT COALESCE(SUM(quantity * price), 0) as subtotal FROM work_items WHERE project_id = %s AND estimate_id IS NULL", (project_id,))
+                cur.execute("SELECT COALESCE(SUM(quantity * price), 0) as subtotal FROM work_items WHERE project_id = %s AND estimate_id IS NULL AND sort_order >= 0", (project_id,))
                 main_sub = float(cur.fetchone()["subtotal"])
                 disc = main_sub * float(proj["discount_percent"] or 0) / 100
                 after = main_sub - disc

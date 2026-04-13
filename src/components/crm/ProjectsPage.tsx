@@ -52,17 +52,39 @@ export default function ProjectsPage({ openProjectId, onClearProject }: {
 
   const initials = (name: string) => name.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase() || "?";
 
+  const filterIcons: Record<string, string> = { all: "FolderKanban", active: "Play", draft: "FileText", done: "CheckCircle", paused: "PauseCircle" };
+  const filterColors: Record<string, string> = {
+    all: "text-ink",
+    active: "text-blue-600",
+    draft: "text-ink-faint",
+    done: "text-green-600",
+    paused: "text-amber-600",
+  };
+  const filterBg: Record<string, string> = {
+    all: "border-ink bg-ink text-white",
+    active: "border-blue-200 bg-blue-50",
+    draft: "border-snow-dark bg-white",
+    done: "border-green-200 bg-green-50",
+    paused: "border-amber-200 bg-amber-50",
+  };
+
   return (
     <div className="space-y-5 animate-fade-in">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex gap-1 bg-white rounded-full p-1 border border-snow-dark">
-          {filters.map(f => (
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        {filters.map(f => {
+          const count = f === "all" ? projects.length : projects.filter(p => p.status === f).length;
+          const isActive = filter === f;
+          return (
             <button key={f} onClick={() => setFilter(f)}
-              className={`px-4 py-1.5 text-xs rounded-full transition-all font-medium ${filter === f ? "bg-ink text-white" : "text-ink-muted hover:text-ink"}`}>
-              {filterLabels[f]}
+              className={`rounded-2xl p-4 border text-left transition-all ${isActive ? filterBg[f] : "border-snow-dark bg-white hover:border-ink/20"}`}>
+              <div className="flex items-center gap-2 mb-2">
+                <Icon name={filterIcons[f]} fallback="Circle" size={14} className={isActive ? (f === "all" ? "text-white" : filterColors[f]) : "text-ink-faint"} />
+                <span className={`text-xs font-medium ${isActive ? (f === "all" ? "text-white" : filterColors[f]) : "text-ink-faint"}`}>{filterLabels[f]}</span>
+              </div>
+              <div className={`font-display text-2xl font-semibold tracking-tight ${isActive && f === "all" ? "text-white" : "text-ink"}`}>{count}</div>
             </button>
-          ))}
-        </div>
+          );
+        })}
       </div>
 
       {loading ? (

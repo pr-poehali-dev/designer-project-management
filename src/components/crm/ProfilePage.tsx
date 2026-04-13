@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import Icon from "@/components/ui/icon";
+import { useTheme, THEMES, ThemeId } from "@/context/ThemeContext";
 
 const API = "https://functions.poehali.dev/1e1d2ff7-8833-4400-a59e-564cb2ac887b";
 
@@ -18,6 +19,7 @@ const TARIFFS = [
 ];
 
 export default function ProfilePage() {
+  const { theme, setTheme } = useTheme();
   const [profile, setProfile] = useState<Profile>({ full_name: "", phone: "", email: "", position: "", assistant_name: "" });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -36,6 +38,7 @@ export default function ProfilePage() {
         const p = data.profile;
         setProfile({ full_name: p.full_name || "", phone: p.phone || "", email: p.email || "", position: p.position || "", assistant_name: p.assistant_name || "" });
         setSaved({ full_name: p.full_name || "", phone: p.phone || "", email: p.email || "", position: p.position || "", assistant_name: p.assistant_name || "" });
+        if (p.theme) setTheme(p.theme as ThemeId);
       }
     } catch { /* ignore */ } finally {
       setLoading(false);
@@ -51,7 +54,7 @@ export default function ProfilePage() {
       const r = await fetch(`${API}?action=profile`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(profile),
+        body: JSON.stringify({ ...profile, theme }),
       });
       const data = await r.json();
       if (data.ok) {
@@ -112,6 +115,34 @@ export default function ProfilePage() {
             />
             <p className="text-xs text-ink-faint mt-1">Так будет звать себя ваш голосовой помощник</p>
           </div>
+        </div>
+
+        {/* Тема оформления */}
+        <div className="mt-6 pt-6 border-t border-snow-dark">
+          <label className="block text-xs font-medium text-ink-muted mb-3 flex items-center gap-1.5">
+            <Icon name="Palette" size={14} /> Тема оформления
+          </label>
+          <div className="grid grid-cols-4 md:grid-cols-7 gap-2">
+            {THEMES.map(t => (
+              <button
+                key={t.id}
+                onClick={() => setTheme(t.id)}
+                className={`group flex flex-col items-center gap-1.5 p-2 rounded-xl border-2 transition-all ${
+                  theme === t.id ? "border-current shadow-sm scale-105" : "border-transparent hover:border-snow-dark"
+                }`}
+                style={{ borderColor: theme === t.id ? t.accent : undefined }}
+                title={t.label}
+              >
+                <div className="w-10 h-10 rounded-xl overflow-hidden flex shrink-0 shadow-sm border border-snow-dark">
+                  <div className="flex-1" style={{ background: t.bg }} />
+                  <div className="w-3" style={{ background: t.accent }} />
+                </div>
+                <span className="text-[10px] font-medium text-ink-muted leading-none">{t.label}</span>
+                {theme === t.id && <Icon name="Check" size={10} className="text-green-500" />}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-ink-faint mt-2">Изменения применяются сразу, сохраняются при нажатии «Сохранить»</p>
         </div>
 
         <div className="flex items-center justify-between mt-6 pt-6 border-t border-snow-dark">

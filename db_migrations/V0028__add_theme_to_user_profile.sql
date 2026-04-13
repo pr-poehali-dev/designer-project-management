@@ -1,0 +1,1 @@
+ALTER TABLE user_profile ADD COLUMN IF NOT EXISTS theme VARCHAR(50) DEFAULT 'arena';

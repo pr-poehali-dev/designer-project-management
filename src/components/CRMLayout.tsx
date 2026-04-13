@@ -149,9 +149,9 @@ export default function CRMLayout({ onLogout }: Props) {
   };
 
   return (
-    <div className="flex h-screen bg-snow font-body overflow-hidden">
+    <div className="flex h-screen font-body overflow-hidden" style={{ background: "var(--t-bg)" }}>
       {/* Sidebar */}
-      <aside className={`flex flex-col bg-white border-r border-snow-dark transition-all duration-300 ${collapsed ? "w-16" : "w-56"}`}>
+      <aside className={`flex flex-col border-r border-snow-dark transition-all duration-300 ${collapsed ? "w-16" : "w-56"}`} style={{ background: "var(--t-sidebar-bg)" }}>
         <div className="flex items-center justify-between px-4 h-16 border-b border-snow-dark">
           {!collapsed && <span className="font-display text-lg font-bold tracking-tight">Арена</span>}
           <button onClick={() => setCollapsed(!collapsed)} className="text-ink-faint hover:text-ink transition-colors ml-auto">
@@ -224,7 +224,7 @@ export default function CRMLayout({ onLogout }: Props) {
 
       {/* Main */}
       <main className="flex-1 overflow-y-auto">
-        <div className="sticky top-0 z-10 flex items-center justify-between px-8 h-16 bg-white/80 backdrop-blur-lg border-b border-snow-dark">
+        <div className="sticky top-0 z-10 flex items-center justify-between px-8 h-16 backdrop-blur-lg border-b border-snow-dark" style={{ background: "color-mix(in srgb, var(--t-sidebar-bg) 85%, transparent)" }}>
           <h1 className="font-display text-lg font-semibold">{PAGE_TITLES[active] || ""}</h1>
           <div className="flex items-center gap-3">
             <button className="relative text-ink-faint hover:text-ink transition-colors">

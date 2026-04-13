@@ -30,15 +30,15 @@ export default {
 				background: 'hsl(var(--background))',
 				foreground: 'hsl(var(--foreground))',
 				ink: {
-					DEFAULT: '#0A0A0A',
-					light: '#3A3A3A',
-					muted: '#6B6B6B',
-					faint: '#9A9A9A',
+					DEFAULT: 'var(--t-ink)',
+					light: 'var(--t-ink-light)',
+					muted: 'var(--t-ink-muted)',
+					faint: 'var(--t-ink-faint)',
 				},
 				snow: {
-					DEFAULT: '#FAFAFA',
-					mid: '#F2F2F2',
-					dark: '#E8E8E8',
+					DEFAULT: 'var(--t-snow)',
+					mid: 'var(--t-snow-mid)',
+					dark: 'var(--t-snow-dark)',
 				},
 				primary: {
 					DEFAULT: 'hsl(var(--primary))',

@@ -14,7 +14,7 @@ CORS_HEADERS = {
     "Access-Control-Allow-Headers": "Content-Type",
 }
 
-PROFILE_FIELDS = ["full_name", "phone", "email", "position", "avatar_url", "assistant_name"]
+PROFILE_FIELDS = ["full_name", "phone", "email", "position", "avatar_url", "assistant_name", "theme"]
 COMPANY_FIELDS = [
     "legal_form", "company_name", "inn", "ogrn", "kpp",
     "legal_address", "actual_address",

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import Icon from "@/components/ui/icon";
+import GuildProfileBlock from "@/components/crm/GuildProfileBlock";
 
 const API = "https://functions.poehali.dev/1e1d2ff7-8833-4400-a59e-564cb2ac887b";
 
@@ -333,6 +334,8 @@ export default function CompanyPage() {
           {saving ? "Сохраняю..." : "Сохранить"}
         </button>
       </div>
+
+      <GuildProfileBlock />
     </div>
   );
 }

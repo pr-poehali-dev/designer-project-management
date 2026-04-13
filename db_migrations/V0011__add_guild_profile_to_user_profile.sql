@@ -1,0 +1,6 @@
+ALTER TABLE user_profile
+  ADD COLUMN IF NOT EXISTS specializations TEXT[] DEFAULT '{}',
+  ADD COLUMN IF NOT EXISTS guild_description TEXT DEFAULT '',
+  ADD COLUMN IF NOT EXISTS guild_photos TEXT[] DEFAULT '{}',
+  ADD COLUMN IF NOT EXISTS guild_price_info TEXT DEFAULT '',
+  ADD COLUMN IF NOT EXISTS taking_orders BOOLEAN DEFAULT FALSE;

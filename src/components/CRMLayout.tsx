@@ -10,6 +10,7 @@ import MarketingPage from "@/components/crm/MarketingPage";
 import ChatsPage from "@/components/crm/ChatsPage";
 import ProfilePage from "@/components/crm/ProfilePage";
 import CompanyPage from "@/components/crm/CompanyPage";
+import GuildPage from "@/components/crm/GuildPage";
 
 interface Props {
   onLogout: () => void;
@@ -27,6 +28,7 @@ const NAV_ITEMS = [
 ];
 
 const BOTTOM_NAV = [
+  { id: "guild", label: "Гильдия", icon: "Users" },
   { id: "profile", label: "Профиль", icon: "UserCircle" },
   { id: "company", label: "Компания", icon: "Building2" },
 ];
@@ -66,6 +68,7 @@ export default function CRMLayout({ onLogout }: Props) {
       case "chats": return <ChatsPage />;
       case "profile": return <ProfilePage />;
       case "company": return <CompanyPage />;
+      case "guild": return <GuildPage onHire={(member) => { setActive("team"); }} />;
       default: return <DashboardPage />;
     }
   };

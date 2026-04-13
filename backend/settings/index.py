@@ -22,6 +22,8 @@ COMPANY_FIELDS = [
     "director_name", "contact_phone", "contact_email",
 ]
 
+GUILD_FIELDS = ["specializations", "guild_description", "guild_price_info", "taking_orders"]
+
 
 def get_db():
     return psycopg2.connect(os.environ["DATABASE_URL"])
@@ -92,6 +94,79 @@ def save_company(data: dict):
         vals.append(1)
         cur.execute(f"UPDATE company_info SET {', '.join(sets)} WHERE id = %s", vals)
         conn.commit()
+    finally:
+        conn.close()
+
+
+def get_guild_profile() -> dict:
+    conn = get_db()
+    try:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("SELECT * FROM user_profile ORDER BY id LIMIT 1")
+        row = cur.fetchone()
+        return dict(row) if row else {}
+    finally:
+        conn.close()
+
+
+def save_guild_profile(data: dict):
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        sets, vals = [], []
+        for f in GUILD_FIELDS:
+            if f in data:
+                if f == "specializations":
+                    sets.append(f"{f} = %s")
+                    vals.append(data[f])
+                else:
+                    sets.append(f"{f} = %s")
+                    vals.append(data[f])
+        if not sets:
+            return
+        sets.append("updated_at = NOW()")
+        vals.append(1)
+        cur.execute(f"UPDATE user_profile SET {', '.join(sets)} WHERE id = %s", vals)
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def upload_guild_photo(body: dict) -> str:
+    file_data = body.get("file")
+    mime = body.get("mime", "image/jpeg")
+    if not file_data:
+        return ""
+    raw = base64.b64decode(file_data)
+    ext = mime.split("/")[-1].replace("jpeg", "jpg")
+    key = f"guild/{uuid.uuid4()}.{ext}"
+    s3 = get_s3()
+    s3.put_object(Bucket="files", Key=key, Body=raw, ContentType=mime, ACL="public-read")
+    access_key = os.environ["AWS_ACCESS_KEY_ID"]
+    return f"https://cdn.poehali.dev/projects/{access_key}/bucket/{key}"
+
+
+def get_guild_members(specialization: str = None) -> list:
+    conn = get_db()
+    try:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        if specialization:
+            cur.execute("""
+                SELECT id, full_name, position, avatar_url,
+                       specializations, guild_description, guild_price_info, guild_photos, taking_orders
+                FROM user_profile
+                WHERE taking_orders = TRUE AND %s = ANY(specializations)
+                ORDER BY full_name
+            """, (specialization,))
+        else:
+            cur.execute("""
+                SELECT id, full_name, position, avatar_url,
+                       specializations, guild_description, guild_price_info, guild_photos, taking_orders
+                FROM user_profile
+                WHERE taking_orders = TRUE
+                ORDER BY full_name
+            """)
+        return [dict(r) for r in cur.fetchall()]
     finally:
         conn.close()
 
@@ -171,6 +246,72 @@ def handler(event: dict, context) -> dict:
         return {
             "statusCode": 200, "headers": CORS_HEADERS,
             "body": json.dumps({"ok": True, "url": url})
+        }
+
+    if action == "guild_profile" and method == "GET":
+        data = get_guild_profile()
+        return {
+            "statusCode": 200, "headers": CORS_HEADERS,
+            "body": json.dumps({"ok": True, "guild": {
+                "specializations": data.get("specializations") or [],
+                "guild_description": data.get("guild_description") or "",
+                "guild_price_info": data.get("guild_price_info") or "",
+                "guild_photos": data.get("guild_photos") or [],
+                "taking_orders": data.get("taking_orders") or False,
+            }}, default=str)
+        }
+
+    if action == "guild_profile" and method in ("POST", "PUT"):
+        body = json.loads(event.get("body") or "{}")
+        save_guild_profile(body)
+        return {
+            "statusCode": 200, "headers": CORS_HEADERS,
+            "body": json.dumps({"ok": True})
+        }
+
+    if action == "upload_guild_photo" and method == "POST":
+        body = json.loads(event.get("body") or "{}")
+        url = upload_guild_photo(body)
+        if url:
+            conn = get_db()
+            try:
+                cur = conn.cursor()
+                cur.execute(
+                    "UPDATE user_profile SET guild_photos = array_append(COALESCE(guild_photos, '{}'), %s) WHERE id = 1",
+                    (url,)
+                )
+                conn.commit()
+            finally:
+                conn.close()
+        return {
+            "statusCode": 200, "headers": CORS_HEADERS,
+            "body": json.dumps({"ok": True, "url": url})
+        }
+
+    if action == "delete_guild_photo" and method == "POST":
+        body = json.loads(event.get("body") or "{}")
+        url_to_remove = body.get("url", "")
+        conn = get_db()
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                "UPDATE user_profile SET guild_photos = array_remove(COALESCE(guild_photos, '{}'), %s) WHERE id = 1",
+                (url_to_remove,)
+            )
+            conn.commit()
+        finally:
+            conn.close()
+        return {
+            "statusCode": 200, "headers": CORS_HEADERS,
+            "body": json.dumps({"ok": True})
+        }
+
+    if action == "guild" and method == "GET":
+        spec = params.get("specialization", "")
+        members = get_guild_members(spec if spec else None)
+        return {
+            "statusCode": 200, "headers": CORS_HEADERS,
+            "body": json.dumps({"ok": True, "members": members}, default=str)
         }
 
     return {

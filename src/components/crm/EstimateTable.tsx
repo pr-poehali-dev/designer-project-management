@@ -21,6 +21,8 @@ export default function EstimateTable({ projectId, estimateId, discountPercent, 
   const [loadingTemplateId, setLoadingTemplateId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saved" | "error">("idle");
+  const [isApproved, setIsApproved] = useState(false);
+  const [approvingEstimate, setApprovingEstimate] = useState(false);
 
   const dragItem = useRef<number | null>(null);
   const dragOver = useRef<number | null>(null);
@@ -31,10 +33,11 @@ export default function EstimateTable({ projectId, estimateId, discountPercent, 
         const r = await fetch(`${API}?action=estimates&project_id=${projectId}`);
         const data = await r.json();
         if (data.ok) {
-          const est = (data.estimates || []).find((e: { id: number }) => e.id === estimateId);
+          const est = (data.estimates || []).find((e: { id: number; is_approved: boolean }) => e.id === estimateId);
           const loaded = est?.items || [];
           setItems(loaded);
           setSavedItems(JSON.stringify(loaded.map((i: WorkItem) => ({ id: i.id, name: i.name, quantity: i.quantity, unit: i.unit, price: i.price }))));
+          setIsApproved(est?.is_approved || false);
         }
       } else {
         const r = await fetch(`${API}?action=projects&id=${projectId}`);
@@ -43,10 +46,30 @@ export default function EstimateTable({ projectId, estimateId, discountPercent, 
           const loaded = (data.work_items || []).filter((i: WorkItem) => !i.estimate_id);
           setItems(loaded);
           setSavedItems(JSON.stringify(loaded.map((i: WorkItem) => ({ id: i.id, name: i.name, quantity: i.quantity, unit: i.unit, price: i.price }))));
+          setIsApproved(data.project?.main_estimate_approved || false);
         }
       }
     } catch { /* ignore */ }
   }, [projectId, estimateId]);
+
+  const toggleApprove = async () => {
+    setApprovingEstimate(true);
+    const newVal = !isApproved;
+    try {
+      if (estimateId) {
+        await fetch(`${API}?action=estimates&id=${estimateId}`, {
+          method: "PUT", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "approve", is_approved: newVal }),
+        });
+      } else {
+        await fetch(`${API}?action=projects&id=${projectId}`, {
+          method: "PUT", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ main_estimate_approved: newVal }),
+        });
+      }
+      setIsApproved(newVal);
+    } catch { /* ignore */ } finally { setApprovingEstimate(false); }
+  };
 
   const loadTemplates = useCallback(async () => {
     try {
@@ -254,6 +277,18 @@ export default function EstimateTable({ projectId, estimateId, discountPercent, 
         ) : (
           <span className="text-sm font-semibold">{title}</span>
         )}
+        <button onClick={toggleApprove} disabled={approvingEstimate}
+          className={`ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all disabled:opacity-50 ${
+            isApproved
+              ? "bg-green-500 text-white hover:bg-green-600"
+              : "border border-snow-dark text-ink-muted hover:text-ink hover:border-ink/30 bg-white"
+          }`}>
+          {approvingEstimate
+            ? <div className="w-3 h-3 border-2 border-current/30 border-t-current rounded-full animate-spin" />
+            : <Icon name={isApproved ? "CheckCircle" : "Circle"} size={13} />
+          }
+          {isApproved ? "Утверждена" : "Утвердить"}
+        </button>
       </div>
 
       <div className="flex items-center justify-between">

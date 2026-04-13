@@ -135,7 +135,7 @@ def handle_projects(method, params, body):
             return json_resp({"ok": True, "id": cur.fetchone()["id"]})
 
         if method in ("POST", "PUT") and project_id:
-            fields = ["name", "client_id", "status", "deadline", "discount_percent", "vat_mode", "vat_rate"]
+            fields = ["name", "client_id", "status", "deadline", "discount_percent", "vat_mode", "vat_rate", "main_estimate_approved"]
             sets, vals = [], []
             for f in fields:
                 if f in body:
@@ -345,15 +345,22 @@ def handle_client_view(method, params, body):
 
         project_id = project["id"]
 
-        cur.execute("""
-            SELECT id, name, quantity, unit, price, sort_order
-            FROM work_items WHERE project_id = %s AND estimate_id IS NULL ORDER BY sort_order, id
-        """, (project_id,))
-        items = [dict(r) for r in cur.fetchall()]
+        # Основная смета — только если утверждена
+        cur.execute("SELECT main_estimate_approved FROM projects WHERE id = %s", (project_id,))
+        proj_flags = cur.fetchone()
+        if proj_flags and proj_flags["main_estimate_approved"]:
+            cur.execute("""
+                SELECT id, name, quantity, unit, price, sort_order
+                FROM work_items WHERE project_id = %s AND estimate_id IS NULL ORDER BY sort_order, id
+            """, (project_id,))
+            items = [dict(r) for r in cur.fetchall()]
+        else:
+            items = []
 
+        # Доп. сметы — только утверждённые
         cur.execute("""
             SELECT e.id, e.name, e.discount_percent, e.vat_mode, e.vat_rate
-            FROM project_estimates e WHERE e.project_id = %s ORDER BY e.sort_order, e.id
+            FROM project_estimates e WHERE e.project_id = %s AND e.is_approved = TRUE ORDER BY e.sort_order, e.id
         """, (project_id,))
         estimates_raw = [dict(r) for r in cur.fetchall()]
         estimates = []
@@ -433,6 +440,25 @@ def handle_estimates(method, params, body):
             return json_resp({"ok": True, "id": cur.fetchone()["id"]})
 
         if method in ("POST", "PUT") and estimate_id:
+            # Утверждение сметы
+            if body.get("action") == "approve":
+                approved = body.get("is_approved", True)
+                cur.execute(
+                    "UPDATE project_estimates SET is_approved = %s, approved_at = CASE WHEN %s THEN NOW() ELSE NULL END WHERE id = %s",
+                    (approved, approved, estimate_id)
+                )
+                conn.commit()
+                return json_resp({"ok": True})
+            # Утверждение основной сметы (без estimate_id)
+            if body.get("action") == "approve_main":
+                pid = body.get("project_id")
+                approved = body.get("is_approved", True)
+                cur.execute(
+                    "UPDATE projects SET main_estimate_approved = %s, main_estimate_approved_at = CASE WHEN %s THEN NOW() ELSE NULL END WHERE id = %s",
+                    (approved, approved, pid)
+                )
+                conn.commit()
+                return json_resp({"ok": True})
             fields = ["name", "discount_percent", "vat_mode", "vat_rate"]
             sets, vals = [], []
             for f in fields:
@@ -719,9 +745,44 @@ def handle_payments(method, params, body):
         if method == "GET":
             cur.execute("SELECT * FROM project_payments WHERE project_id = %s ORDER BY created_at ASC", (project_id,))
             payments = [dict(r) for r in cur.fetchall()]
-            total = sum(float(p["amount"]) for p in payments)
             paid = sum(float(p["amount"]) for p in payments if p["is_paid"])
-            return json_resp({"ok": True, "payments": payments, "total": total, "paid": paid, "remaining": total - paid})
+
+            # Сумма утверждённых смет (доп. сметы)
+            cur.execute("""
+                SELECT COALESCE(SUM(wi.quantity * wi.price), 0) as subtotal,
+                       e.discount_percent, e.vat_mode, e.vat_rate
+                FROM project_estimates e
+                LEFT JOIN work_items wi ON wi.estimate_id = e.id
+                WHERE e.project_id = %s AND e.is_approved = TRUE
+                GROUP BY e.id, e.discount_percent, e.vat_mode, e.vat_rate
+            """, (project_id,))
+            approved_total = 0.0
+            for row in cur.fetchall():
+                sub = float(row["subtotal"])
+                disc = sub * float(row["discount_percent"] or 0) / 100
+                after = sub - disc
+                vm = row["vat_mode"]
+                vr = float(row["vat_rate"] or 20)
+                if vm == "added":
+                    after = after + after * vr / 100
+                approved_total += after
+
+            # Основная смета (work_items без estimate_id) если утверждена
+            cur.execute("SELECT main_estimate_approved, discount_percent, vat_mode, vat_rate FROM projects WHERE id = %s", (project_id,))
+            proj = cur.fetchone()
+            if proj and proj["main_estimate_approved"]:
+                cur.execute("SELECT COALESCE(SUM(quantity * price), 0) as subtotal FROM work_items WHERE project_id = %s AND estimate_id IS NULL", (project_id,))
+                main_sub = float(cur.fetchone()["subtotal"])
+                disc = main_sub * float(proj["discount_percent"] or 0) / 100
+                after = main_sub - disc
+                vm = proj["vat_mode"]
+                vr = float(proj["vat_rate"] or 20)
+                if vm == "added":
+                    after = after + after * vr / 100
+                approved_total += after
+
+            remaining = approved_total - paid
+            return json_resp({"ok": True, "payments": payments, "total": approved_total, "paid": paid, "remaining": remaining})
         if method == "POST" and not body.get("action"):
             cur.execute(
                 "INSERT INTO project_payments (project_id, amount, label, is_paid) VALUES (%s, %s, %s, %s) RETURNING *",

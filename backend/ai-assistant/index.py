@@ -294,7 +294,8 @@ def chat_with_gpt(messages: list, system_prompt: str) -> str:
 
 
 def tts_openai(text: str, gender: str = "male") -> str:
-    """Синтез речи через Polza TTS (OpenAI-совместимый). Возвращает base64 mp3."""
+    """Синтез речи, сохраняет mp3 в S3 и возвращает публичный URL."""
+    import uuid as _uuid, boto3 as _boto3
     api_key = os.environ.get("POLZA_AI_API_KEY", "")
     voice = "onyx" if gender == "male" else "nova"
     resp = requests.post(
@@ -303,10 +304,19 @@ def tts_openai(text: str, gender: str = "male") -> str:
         json={"model": "openai/tts-1", "input": text, "voice": voice, "response_format": "mp3"},
         timeout=30,
     )
-    print(f"TTS status: {resp.status_code}, size: {len(resp.content)}")
     if resp.status_code != 200:
         raise Exception(f"TTS error: {resp.status_code} {resp.text[:300]}")
-    return base64.b64encode(resp.content).decode()
+
+    key = f"tts/{_uuid.uuid4()}.mp3"
+    s3 = _boto3.client("s3",
+        endpoint_url="https://bucket.poehali.dev",
+        aws_access_key_id=os.environ["AWS_ACCESS_KEY_ID"],
+        aws_secret_access_key=os.environ["AWS_SECRET_ACCESS_KEY"],
+    )
+    s3.put_object(Bucket="files", Key=key, Body=resp.content, ContentType="audio/mpeg", ACL="public-read")
+    url = f"https://cdn.poehali.dev/projects/{os.environ['AWS_ACCESS_KEY_ID']}/bucket/{key}"
+    print(f"TTS uploaded: {url}")
+    return url
 
 
 def handler(event: dict, context) -> dict:
@@ -340,8 +350,8 @@ def handler(event: dict, context) -> dict:
         text = body.get("text", "").strip()
         if not text:
             return json_resp({"ok": False, "error": "text required"}, 400)
-        audio_b64 = tts_openai(text, gender)
-        return json_resp({"ok": True, "audio": audio_b64, "mime": "audio/mpeg"})
+        url = tts_openai(text, gender)
+        return json_resp({"ok": True, "url": url})
 
     if action == "chat" and method == "POST":
         body = json.loads(event.get("body") or "{}")

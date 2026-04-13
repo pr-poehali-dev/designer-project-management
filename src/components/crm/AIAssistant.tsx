@@ -17,35 +17,14 @@ interface Props {
   onRefresh?: () => void;
 }
 
-// Глобальный AudioContext — разблокируется первым кликом пользователя
-let sharedCtx: AudioContext | null = null;
-function getAudioContext(): AudioContext {
-  if (!sharedCtx) sharedCtx = new AudioContext();
-  if (sharedCtx.state === "suspended") sharedCtx.resume();
-  return sharedCtx;
-}
-
-// Воспроизведение base64 mp3 через Web Audio API (обходит autoplay-блокировку)
-async function playAudio(b64: string): Promise<void> {
-  try {
-    const ctx = getAudioContext();
-    const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
-    const buffer = await ctx.decodeAudioData(bytes.buffer);
-    await new Promise<void>(res => {
-      const src = ctx.createBufferSource();
-      src.buffer = buffer;
-      src.connect(ctx.destination);
-      src.onended = () => res();
-      src.start(0);
-    });
-  } catch {
-    await new Promise<void>(res => {
-      const audio = new Audio(`data:audio/mpeg;base64,${b64}`);
-      audio.onended = () => res();
-      audio.onerror = () => res();
-      audio.play().catch(() => res());
-    });
-  }
+// Воспроизведение по URL — браузер никогда не блокирует внешние ссылки
+function playUrl(url: string): Promise<void> {
+  return new Promise(res => {
+    const audio = new Audio(url);
+    audio.onended = () => res();
+    audio.onerror = () => res();
+    audio.play().catch(() => res());
+  });
 }
 
 // Состояния микрофона
@@ -145,8 +124,8 @@ export default function AIAssistant({ currentPage, currentProjectName, onNavigat
               body: JSON.stringify({ text: data.reply }),
             });
             const ttsData = await ttsR.json();
-            if (ttsData.ok && ttsData.audio) {
-              await playAudio(ttsData.audio);
+            if (ttsData.ok && ttsData.url) {
+              await playUrl(ttsData.url);
             }
           } catch { /* ignore tts errors */ }
           setMicState("idle");
@@ -305,7 +284,7 @@ export default function AIAssistant({ currentPage, currentProjectName, onNavigat
     <>
       {/* ── Кнопка открытия ── */}
       <button
-        onClick={() => { getAudioContext(); setOpen(o => !o); }}
+        onClick={() => setOpen(o => !o)}
         className={`fixed bottom-6 right-6 z-50 w-14 h-14 rounded-2xl shadow-xl flex items-center justify-center transition-all duration-200 ${
           open ? "bg-ink text-white scale-95 shadow-md" : "bg-ink text-white hover:scale-105 hover:shadow-2xl"
         } ${micLocked ? "ring-4 ring-red-400" : ""}`}

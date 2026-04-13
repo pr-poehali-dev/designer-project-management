@@ -1,4 +1,4 @@
-"""AI-ассистент: транскрипция голоса (Whisper), ответы (GPT-4o), контекст приложения."""
+"""AI-ассистент Давинчи: голос (Whisper), диалог (GPT-4o), полный доступ к CRM."""
 import json
 import os
 import base64
@@ -14,6 +14,8 @@ CORS_HEADERS = {
 }
 
 POLZA_BASE = "https://api.polza.ai/api/v1"
+CRM_API = "https://functions.poehali.dev/21fcd16a-d247-4b03-8505-0be9497f8386"
+TASKS_API = "https://functions.poehali.dev/bb906e76-a34b-4cb8-9312-650654427354"
 
 
 def json_resp(data, status=200):
@@ -24,7 +26,7 @@ def get_db():
     return psycopg2.connect(os.environ["DATABASE_URL"])
 
 
-def get_assistant_name() -> str:
+def get_profile() -> tuple:
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -38,18 +40,122 @@ def get_assistant_name() -> str:
     return "Давинчи", "пользователь"
 
 
+def get_crm_context() -> dict:
+    """Загружает актуальные данные из CRM для контекста."""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+        cur.execute("""
+            SELECT p.id, p.name, p.status, p.deadline,
+                   c.name as client_name,
+                   (SELECT COUNT(*) FROM project_team t WHERE t.project_id = p.id) as team_count
+            FROM projects p
+            LEFT JOIN clients c ON c.id = p.client_id
+            ORDER BY p.updated_at DESC LIMIT 10
+        """)
+        projects = [dict(r) for r in cur.fetchall()]
+
+        cur.execute("""
+            SELECT id, name, contact_person, phone, email, status
+            FROM clients ORDER BY created_at DESC LIMIT 10
+        """)
+        clients = [dict(r) for r in cur.fetchall()]
+
+        cur.execute("""
+            SELECT id, title, status, priority, assignee, deadline
+            FROM tasks WHERE status != 'done' ORDER BY created_at DESC LIMIT 15
+        """)
+        tasks = [dict(r) for r in cur.fetchall()]
+
+        cur.execute("""
+            SELECT title, deadline FROM tasks
+            WHERE deadline IS NOT NULL AND deadline >= NOW()::date AND status != 'done'
+            ORDER BY deadline ASC LIMIT 5
+        """)
+        upcoming = [dict(r) for r in cur.fetchall()]
+
+        conn.close()
+        return {"projects": projects, "clients": clients, "tasks": tasks, "upcoming_deadlines": upcoming}
+    except Exception as e:
+        return {"projects": [], "clients": [], "tasks": [], "upcoming_deadlines": [], "error": str(e)}
+
+
+def execute_action(action: dict) -> dict:
+    """Выполняет действие в CRM напрямую через БД."""
+    act = action.get("action")
+    conn = get_db()
+    try:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+        if act == "create_task":
+            title = action.get("title", "Новая задача")
+            description = action.get("description", "")
+            priority = action.get("priority", "medium")
+            assignee = action.get("assignee", "")
+            deadline = action.get("deadline")
+            project_id = action.get("project_id")
+            cur.execute("""
+                INSERT INTO tasks (title, description, priority, assignee, status, type, deadline, project_id)
+                VALUES (%s, %s, %s, %s, 'new', 'project', %s, %s) RETURNING id
+            """, (title, description, priority, assignee, deadline, project_id))
+            task_id = cur.fetchone()["id"]
+            conn.commit()
+            return {"ok": True, "created": "task", "id": task_id, "title": title}
+
+        if act == "create_client":
+            name = action.get("name", "Новый клиент")
+            phone = action.get("phone", "")
+            email = action.get("email", "")
+            contact_person = action.get("contact_person", "")
+            cur.execute("""
+                INSERT INTO clients (name, contact_person, phone, email, status)
+                VALUES (%s, %s, %s, %s, 'new') RETURNING id
+            """, (name, contact_person or name, phone, email))
+            client_id = cur.fetchone()["id"]
+            conn.commit()
+            return {"ok": True, "created": "client", "id": client_id, "name": name}
+
+        if act == "create_project":
+            name = action.get("name", "Новый проект")
+            client_id = action.get("client_id")
+            cur.execute("""
+                INSERT INTO projects (name, client_id, status)
+                VALUES (%s, %s, 'new') RETURNING id
+            """, (name, client_id))
+            project_id = cur.fetchone()["id"]
+            conn.commit()
+            return {"ok": True, "created": "project", "id": project_id, "name": name}
+
+        if act == "add_note":
+            client_id = action.get("client_id")
+            text = action.get("text", "")
+            if client_id and text:
+                cur.execute("INSERT INTO client_notes (client_id, text) VALUES (%s, %s) RETURNING id", (client_id, text))
+                note_id = cur.fetchone()["id"]
+                conn.commit()
+                return {"ok": True, "created": "note", "id": note_id}
+
+        if act == "update_task_status":
+            task_id = action.get("task_id")
+            status = action.get("status", "in_progress")
+            if task_id:
+                cur.execute("UPDATE tasks SET status = %s WHERE id = %s", (status, task_id))
+                conn.commit()
+                return {"ok": True, "updated": "task_status", "task_id": task_id, "status": status}
+
+        return {"ok": False, "error": f"Unknown action: {act}"}
+    finally:
+        conn.close()
+
+
 def transcribe_audio(audio_b64: str, mime: str = "audio/webm") -> str:
-    """Транскрибирует аудио через Whisper (Polza.ai)."""
     api_key = os.environ.get("POLZA_AI_API_KEY", "")
     audio_bytes = base64.b64decode(audio_b64)
-
     ext = "webm"
-    if "ogg" in mime:
-        ext = "ogg"
-    elif "mp4" in mime or "m4a" in mime:
-        ext = "mp4"
-    elif "wav" in mime:
-        ext = "wav"
+    if "ogg" in mime: ext = "ogg"
+    elif "mp4" in mime or "m4a" in mime: ext = "mp4"
+    elif "wav" in mime: ext = "wav"
 
     with tempfile.NamedTemporaryFile(suffix=f".{ext}", delete=False) as f:
         f.write(audio_bytes)
@@ -63,47 +169,113 @@ def transcribe_audio(audio_b64: str, mime: str = "audio/webm") -> str:
             data={"model": "openai/whisper-1", "language": "ru"},
             timeout=30,
         )
-
     os.unlink(tmp_path)
-    data = resp.json()
-    return data.get("text", "")
+    return resp.json().get("text", "")
 
 
-def chat_with_gpt(messages: list, assistant_name: str, user_name: str, context: dict) -> str:
-    """Отправляет сообщения в GPT-4o и возвращает ответ."""
+def build_system_prompt(assistant_name: str, user_name: str, app_context: dict, crm: dict) -> str:
+    page_labels = {
+        "dashboard": "Дашборд", "projects": "Проекты", "clients": "Клиенты",
+        "tasks": "Задачи", "team": "Команда", "finance": "Финансы",
+        "profile": "Профиль", "chats": "Чаты", "guild": "Гильдия",
+        "contracts": "Шаблоны", "marketing": "Маркетинг", "company": "Компания",
+    }
+    status_labels = {"new": "Новый", "active": "Активный", "done": "Завершён", "paused": "Пауза"}
+    priority_labels = {"high": "Высокий", "medium": "Средний", "low": "Низкий"}
+
+    current_page = page_labels.get(app_context.get("page", ""), app_context.get("page", ""))
+    project_name = app_context.get("project_name", "")
+
+    projects_text = ""
+    if crm.get("projects"):
+        lines = []
+        for p in crm["projects"]:
+            st = status_labels.get(p.get("status", ""), p.get("status", ""))
+            cl = f", клиент: {p['client_name']}" if p.get("client_name") else ""
+            dl = f", дедлайн: {p['deadline']}" if p.get("deadline") else ""
+            lines.append(f"  - #{p['id']} «{p['name']}» [{st}]{cl}{dl}")
+        projects_text = "Последние проекты:\n" + "\n".join(lines)
+
+    clients_text = ""
+    if crm.get("clients"):
+        lines = []
+        for c in crm["clients"]:
+            ph = f", тел: {c['phone']}" if c.get("phone") else ""
+            lines.append(f"  - #{c['id']} «{c['name']}» / {c.get('contact_person', '')}{ph}")
+        clients_text = "Последние клиенты:\n" + "\n".join(lines)
+
+    tasks_text = ""
+    if crm.get("tasks"):
+        lines = []
+        for t in crm["tasks"]:
+            pr = priority_labels.get(t.get("priority", ""), "")
+            as_ = f", исполнитель: {t['assignee']}" if t.get("assignee") else ""
+            dl = f", дедлайн: {t['deadline']}" if t.get("deadline") else ""
+            lines.append(f"  - #{t['id']} «{t['title']}» [{pr}]{as_}{dl}")
+        tasks_text = "Активные задачи:\n" + "\n".join(lines)
+
+    deadlines_text = ""
+    if crm.get("upcoming_deadlines"):
+        lines = [f"  - «{d['title']}» → {d['deadline']}" for d in crm["upcoming_deadlines"]]
+        deadlines_text = "Ближайшие дедлайны:\n" + "\n".join(lines)
+
+    return f"""Ты — {assistant_name}, умный AI-помощник дизайн-студии встроенный в CRM.
+Обращайся к пользователю: {user_name}.
+Сейчас открыта страница: {current_page}.{f" Открытый проект: «{project_name}»." if project_name else ""}
+
+=== ДАННЫЕ CRM ===
+{projects_text}
+
+{clients_text}
+
+{tasks_text}
+
+{deadlines_text}
+=================
+
+Ты умеешь ВЫПОЛНЯТЬ действия. Когда пользователь просит что-то сделать — выполняй, отвечай JSON:
+
+НАВИГАЦИЯ (перейти в раздел):
+{{"action": "navigate", "page": "clients|projects|tasks|profile|guild|finance|chats|dashboard|team|contracts|marketing|company"}}
+
+ОТКРЫТЬ ПРОЕКТ (по id из данных выше):
+{{"action": "open_project", "project_id": <число>}}
+
+СОЗДАТЬ ЗАДАЧУ:
+{{"action": "create_task", "title": "...", "description": "...", "priority": "high|medium|low", "assignee": "...", "deadline": "YYYY-MM-DD или null"}}
+
+СОЗДАТЬ КЛИЕНТА:
+{{"action": "create_client", "name": "...", "contact_person": "...", "phone": "...", "email": "..."}}
+
+СОЗДАТЬ ПРОЕКТ:
+{{"action": "create_project", "name": "...", "client_id": <число или null>}}
+
+ДОБАВИТЬ ЗАМЕТКУ КЛИЕНТУ:
+{{"action": "add_note", "client_id": <число>, "text": "..."}}
+
+ИЗМЕНИТЬ СТАТУС ЗАДАЧИ:
+{{"action": "update_task_status", "task_id": <число>, "status": "new|in_progress|review|approval|done"}}
+
+ТОЛЬКО ОТВЕТИТЬ (никакого действия):
+{{"action": "reply", "text": "твой ответ здесь"}}
+
+ВАЖНО:
+- Отвечай ТОЛЬКО валидным JSON, без markdown, без лишнего текста
+- Используй реальные id из данных CRM выше
+- Если не знаешь id — спроси уточнение
+- Если вопрос требует только ответа — используй action=reply
+- Будь краток и дружелюбен, по-русски"""
+
+
+def chat_with_gpt(messages: list, system_prompt: str) -> str:
     api_key = os.environ.get("POLZA_AI_API_KEY", "")
-
-    context_text = ""
-    if context.get("page"):
-        context_text += f"Пользователь сейчас находится на странице: {context['page']}. "
-    if context.get("project_name"):
-        context_text += f"Открытый проект: {context['project_name']}. "
-    if context.get("client_name"):
-        context_text += f"Клиент: {context['client_name']}. "
-
-    system_prompt = f"""Ты — {assistant_name}, умный голосовой помощник дизайн-студии.
-Ты встроен в CRM-систему для дизайнеров интерьера.
-Обращайся к пользователю по имени: {user_name}.
-{context_text}
-
-Ты умеешь:
-- Отвечать на вопросы о проектах, клиентах, задачах
-- Помогать составлять тексты (письма клиентам, описания проектов, сметы)
-- Давать советы по дизайну и работе со студией
-- Выполнять команды навигации — отвечай JSON: {{"action": "navigate", "page": "clients"|"projects"|"tasks"|"profile"|"guild"}}
-- Создавать задачи — отвечай JSON: {{"action": "create_task", "title": "...", "description": "..."}}
-- Открывать проект — отвечай JSON: {{"action": "open_project", "project_id": <id>}}
-
-Если выполняешь команду — отвечай ТОЛЬКО JSON без лишнего текста.
-Если отвечаешь текстом — пиши кратко, по-русски, дружелюбно. Не более 3-4 предложений."""
-
     payload = {
         "model": "openai/gpt-4o",
         "messages": [{"role": "system", "content": system_prompt}] + messages,
-        "max_tokens": 500,
-        "temperature": 0.7,
+        "max_tokens": 600,
+        "temperature": 0.5,
+        "response_format": {"type": "json_object"},
     }
-
     resp = requests.post(
         f"{POLZA_BASE}/chat/completions",
         headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
@@ -115,7 +287,7 @@ def chat_with_gpt(messages: list, assistant_name: str, user_name: str, context: 
 
 
 def handler(event: dict, context) -> dict:
-    """AI-ассистент: /transcribe — голос в текст, /chat — текстовый диалог."""
+    """AI-ассистент Давинчи: transcribe, chat, context."""
     if event.get("httpMethod") == "OPTIONS":
         return {"statusCode": 200, "headers": CORS_HEADERS, "body": ""}
 
@@ -123,7 +295,7 @@ def handler(event: dict, context) -> dict:
     params = event.get("queryStringParameters") or {}
     action = params.get("action", "")
 
-    assistant_name, user_name = get_assistant_name()
+    assistant_name, user_name = get_profile()
 
     if action == "info" and method == "GET":
         return json_resp({"ok": True, "assistant_name": assistant_name, "user_name": user_name})
@@ -143,17 +315,62 @@ def handler(event: dict, context) -> dict:
         app_context = body.get("context", {})
         if not messages:
             return json_resp({"ok": False, "error": "messages required"}, 400)
-        reply = chat_with_gpt(messages, assistant_name, user_name, app_context)
 
-        # Попытка распарсить как команду
-        parsed_action = None
+        crm = get_crm_context()
+        system_prompt = build_system_prompt(assistant_name, user_name, app_context, crm)
+        raw_reply = chat_with_gpt(messages, system_prompt)
+
+        parsed = {}
         try:
-            parsed = json.loads(reply)
-            if isinstance(parsed, dict) and "action" in parsed:
-                parsed_action = parsed
+            parsed = json.loads(raw_reply)
         except Exception:
-            pass
+            return json_resp({"ok": True, "reply": raw_reply, "action": None, "assistant_name": assistant_name})
 
-        return json_resp({"ok": True, "reply": reply, "action": parsed_action, "assistant_name": assistant_name})
+        act = parsed.get("action")
+        reply_text = parsed.get("text", "")
+
+        # Действия которые выполняются на сервере
+        server_actions = {"create_task", "create_client", "create_project", "add_note", "update_task_status"}
+        # Действия которые выполняются на клиенте
+        client_actions = {"navigate", "open_project"}
+
+        executed_result = None
+        client_action = None
+
+        if act in server_actions:
+            executed_result = execute_action(parsed)
+            action_labels = {
+                "create_task": lambda r: f"Задача «{r.get('title', '')}» создана!",
+                "create_client": lambda r: f"Клиент «{r.get('name', '')}» добавлен!",
+                "create_project": lambda r: f"Проект «{r.get('name', '')}» создан!",
+                "add_note": lambda _: "Заметка добавлена!",
+                "update_task_status": lambda r: f"Статус задачи обновлён на «{r.get('status', '')}»",
+            }
+            if executed_result and executed_result.get("ok"):
+                reply_text = action_labels.get(act, lambda _: "Готово!")(executed_result)
+            else:
+                reply_text = f"Не удалось выполнить действие: {executed_result.get('error', 'ошибка')}"
+
+        elif act in client_actions:
+            client_action = parsed
+            action_labels = {
+                "navigate": f"Открываю раздел...",
+                "open_project": f"Открываю проект...",
+            }
+            reply_text = action_labels.get(act, "Выполняю...")
+
+        elif act == "reply":
+            reply_text = parsed.get("text", raw_reply)
+
+        else:
+            reply_text = parsed.get("text", raw_reply)
+
+        return json_resp({
+            "ok": True,
+            "reply": reply_text,
+            "action": client_action,
+            "executed": executed_result,
+            "assistant_name": assistant_name,
+        })
 
     return json_resp({"ok": False, "error": f"Unknown action: {action}"}, 400)

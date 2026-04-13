@@ -210,9 +210,9 @@ export default function CRMLayout({ onLogout }: Props) {
 
       <AIAssistant
         currentPage={active}
-        currentProjectName={undefined}
         onNavigate={(page) => { setActive(page); setOpenProjectId(null); }}
         onOpenProject={(id) => { setOpenProjectId(id); setActive("projects"); }}
+        onRefresh={() => { setActive(p => p); loadProfile(); }}
       />
     </div>
   );

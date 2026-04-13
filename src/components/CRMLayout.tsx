@@ -22,7 +22,7 @@ const NAV_ITEMS = [
   { id: "clients", label: "Клиенты", icon: "Users" },
   { id: "team", label: "Команда", icon: "UserSquare2" },
   { id: "finance", label: "Финансы", icon: "TrendingUp" },
-  { id: "contracts", label: "Документы", icon: "FileText" },
+  { id: "contracts", label: "Шаблоны", icon: "FileText" },
   { id: "marketing", label: "Маркетинг", icon: "Megaphone" },
   { id: "chats", label: "Чаты", icon: "MessageSquare" },
 ];

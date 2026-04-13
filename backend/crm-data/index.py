@@ -592,6 +592,161 @@ def handle_client_messages_unread(method, params, body):
         conn.close()
 
 
+def handle_brief(method, params, body):
+    project_id = params.get("project_id") or body.get("project_id")
+    conn = get_db()
+    try:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        if method == "GET":
+            cur.execute("SELECT * FROM project_briefs WHERE project_id = %s", (project_id,))
+            row = cur.fetchone()
+            return json_resp({"ok": True, "brief": dict(row) if row else None})
+        if method in ("POST", "PUT"):
+            fields = ["style", "area", "budget", "rooms", "wishes", "color_palette",
+                      "furniture", "restrictions", "extra", "client_comment"]
+            sets, vals = [], []
+            for f in fields:
+                if f in body:
+                    sets.append(f"{f} = %s")
+                    vals.append(body[f])
+            sets.append("updated_at = NOW()")
+            cur.execute("SELECT id FROM project_briefs WHERE project_id = %s", (project_id,))
+            if cur.fetchone():
+                vals.append(project_id)
+                cur.execute(f"UPDATE project_briefs SET {', '.join(sets)} WHERE project_id = %s", vals)
+            else:
+                cur.execute(
+                    "INSERT INTO project_briefs (project_id) VALUES (%s)",
+                    (project_id,)
+                )
+                if sets:
+                    vals.append(project_id)
+                    cur.execute(f"UPDATE project_briefs SET {', '.join(sets)} WHERE project_id = %s", vals)
+            conn.commit()
+            return json_resp({"ok": True})
+    finally:
+        conn.close()
+
+
+def handle_references(method, params, body):
+    import base64, uuid, boto3, os as _os
+    project_id = params.get("project_id") or body.get("project_id")
+    conn = get_db()
+    try:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        if method == "GET":
+            cur.execute("SELECT * FROM project_references WHERE project_id = %s ORDER BY created_at ASC", (project_id,))
+            return json_resp({"ok": True, "references": [dict(r) for r in cur.fetchall()]})
+        if method == "POST":
+            file_data = body.get("file")
+            mime = body.get("mime", "image/jpeg")
+            caption = body.get("caption", "")
+            uploaded_by = body.get("uploaded_by", "client")
+            if not file_data:
+                return json_resp({"ok": False, "error": "file required"}, 400)
+            raw = base64.b64decode(file_data)
+            ext = mime.split("/")[-1].replace("jpeg", "jpg")
+            key = f"references/{uuid.uuid4()}.{ext}"
+            s3 = boto3.client("s3", endpoint_url="https://bucket.poehali.dev",
+                aws_access_key_id=_os.environ["AWS_ACCESS_KEY_ID"],
+                aws_secret_access_key=_os.environ["AWS_SECRET_ACCESS_KEY"])
+            s3.put_object(Bucket="files", Key=key, Body=raw, ContentType=mime, ACL="public-read")
+            url = f"https://cdn.poehali.dev/projects/{_os.environ['AWS_ACCESS_KEY_ID']}/bucket/{key}"
+            cur.execute(
+                "INSERT INTO project_references (project_id, uploaded_by, url, caption) VALUES (%s, %s, %s, %s) RETURNING *",
+                (project_id, uploaded_by, url, caption)
+            )
+            ref = dict(cur.fetchone())
+            conn.commit()
+            return json_resp({"ok": True, "reference": ref})
+        if method == "DELETE":
+            ref_id = params.get("id") or body.get("id")
+            cur.execute("DELETE FROM project_references WHERE id = %s AND project_id = %s", (ref_id, project_id))
+            conn.commit()
+            return json_resp({"ok": True})
+    finally:
+        conn.close()
+
+
+def handle_documents(method, params, body):
+    import base64, uuid, boto3, os as _os
+    project_id = params.get("project_id") or body.get("project_id")
+    conn = get_db()
+    try:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        if method == "GET":
+            cur.execute("SELECT * FROM project_documents WHERE project_id = %s ORDER BY created_at ASC", (project_id,))
+            return json_resp({"ok": True, "documents": [dict(r) for r in cur.fetchall()]})
+        if method == "POST" and not body.get("action"):
+            file_data = body.get("file")
+            mime = body.get("mime", "application/pdf")
+            name = body.get("name", "Документ")
+            doc_type = body.get("doc_type", "other")
+            uploaded_by = body.get("uploaded_by", "designer")
+            if not file_data:
+                return json_resp({"ok": False, "error": "file required"}, 400)
+            raw = base64.b64decode(file_data)
+            ext = mime.split("/")[-1]
+            if ext == "vnd.openxmlformats-officedocument.wordprocessingml.document": ext = "docx"
+            elif ext == "msword": ext = "doc"
+            key = f"documents/{uuid.uuid4()}.{ext}"
+            s3 = boto3.client("s3", endpoint_url="https://bucket.poehali.dev",
+                aws_access_key_id=_os.environ["AWS_ACCESS_KEY_ID"],
+                aws_secret_access_key=_os.environ["AWS_SECRET_ACCESS_KEY"])
+            s3.put_object(Bucket="files", Key=key, Body=raw, ContentType=mime, ACL="public-read")
+            url = f"https://cdn.poehali.dev/projects/{_os.environ['AWS_ACCESS_KEY_ID']}/bucket/{key}"
+            cur.execute(
+                "INSERT INTO project_documents (project_id, uploaded_by, name, url, doc_type) VALUES (%s, %s, %s, %s, %s) RETURNING *",
+                (project_id, uploaded_by, name, url, doc_type)
+            )
+            doc = dict(cur.fetchone())
+            conn.commit()
+            return json_resp({"ok": True, "document": doc})
+        if method == "POST" and body.get("action") == "sign":
+            doc_id = body.get("id")
+            cur.execute("UPDATE project_documents SET is_signed = TRUE WHERE id = %s AND project_id = %s", (doc_id, project_id))
+            conn.commit()
+            return json_resp({"ok": True})
+    finally:
+        conn.close()
+
+
+def handle_payments(method, params, body):
+    project_id = params.get("project_id") or body.get("project_id")
+    conn = get_db()
+    try:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        if method == "GET":
+            cur.execute("SELECT * FROM project_payments WHERE project_id = %s ORDER BY created_at ASC", (project_id,))
+            payments = [dict(r) for r in cur.fetchall()]
+            total = sum(float(p["amount"]) for p in payments)
+            paid = sum(float(p["amount"]) for p in payments if p["is_paid"])
+            return json_resp({"ok": True, "payments": payments, "total": total, "paid": paid, "remaining": total - paid})
+        if method == "POST" and not body.get("action"):
+            cur.execute(
+                "INSERT INTO project_payments (project_id, amount, label, is_paid) VALUES (%s, %s, %s, %s) RETURNING *",
+                (project_id, body.get("amount", 0), body.get("label", ""), body.get("is_paid", False))
+            )
+            pay = dict(cur.fetchone())
+            conn.commit()
+            return json_resp({"ok": True, "payment": pay})
+        if method == "POST" and body.get("action") == "mark_paid":
+            pay_id = body.get("id")
+            cur.execute(
+                "UPDATE project_payments SET is_paid = %s, paid_at = CASE WHEN %s THEN NOW() ELSE NULL END WHERE id = %s AND project_id = %s",
+                (body.get("is_paid", True), body.get("is_paid", True), pay_id, project_id)
+            )
+            conn.commit()
+            return json_resp({"ok": True})
+        if method == "DELETE":
+            pay_id = params.get("id") or body.get("id")
+            cur.execute("DELETE FROM project_payments WHERE id = %s AND project_id = %s", (pay_id, project_id))
+            conn.commit()
+            return json_resp({"ok": True})
+    finally:
+        conn.close()
+
+
 def handler(event: dict, context) -> dict:
     """CRUD API для клиентов, проектов, видов работ, заметок."""
     if event.get("httpMethod") == "OPTIONS":
@@ -632,5 +787,13 @@ def handler(event: dict, context) -> dict:
         return handle_client_messages(method, params, body)
     elif action == "client_messages_unread":
         return handle_client_messages_unread(method, params, body)
+    elif action == "brief":
+        return handle_brief(method, params, body)
+    elif action == "references":
+        return handle_references(method, params, body)
+    elif action == "documents":
+        return handle_documents(method, params, body)
+    elif action == "payments":
+        return handle_payments(method, params, body)
 
     return json_resp({"ok": False, "error": f"Unknown action: {action}"}, 400)

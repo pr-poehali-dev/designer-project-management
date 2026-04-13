@@ -2,9 +2,10 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams } from "react-router-dom";
 import Icon from "@/components/ui/icon";
 
-const AUTH_API = "https://functions.poehali.dev/6939c14f-545b-476e-9041-fb66c4517ab0";
-const CRM_API  = "https://functions.poehali.dev/21fcd16a-d247-4b03-8505-0be9497f8386";
-const SESSION_KEY = "client_session";
+const AUTH_API      = "https://functions.poehali.dev/6939c14f-545b-476e-9041-fb66c4517ab0";
+const CRM_API       = "https://functions.poehali.dev/21fcd16a-d247-4b03-8505-0be9497f8386";
+const SETTINGS_API  = "https://functions.poehali.dev/1e1d2ff7-8833-4400-a59e-564cb2ac887b";
+const SESSION_KEY   = "client_session";
 
 interface Session { token: string; name: string; client_id: number; }
 
@@ -104,7 +105,8 @@ interface ProjectData { id: number; name: string; status: string; deadline: stri
 interface WorkItem { id: number; name: string; quantity: number; unit: string; price: number; }
 interface Estimate { id: number; name: string; discount_percent: number; vat_mode: string; vat_rate: number; items: WorkItem[]; }
 interface ChatMessage { id: number; author_name: string; author_role: string; text: string; created_at: string; }
-interface Brief { style: string; area: number; budget: number; rooms: string; wishes: string; color_palette: string; furniture: string; restrictions: string; extra: string; client_comment: string; }
+interface BriefField { key: string; label: string; placeholder: string; type: "text" | "number" | "textarea"; enabled: boolean; }
+interface Brief { style: string; area: number; budget: number; rooms: string; wishes: string; color_palette: string; furniture: string; restrictions: string; extra: string; client_comment: string; [key: string]: unknown; }
 interface Reference { id: number; url: string; caption: string; uploaded_by: string; }
 interface ProjectDoc { id: number; name: string; url: string; doc_type: string; uploaded_by: string; is_signed: boolean; created_at: string; }
 interface Payment { id: number; amount: number; label: string; is_paid: boolean; paid_at: string | null; }
@@ -125,17 +127,6 @@ const NAV_TABS = [
   { id: "references", label: "Референсы", icon: "Images" },
 ];
 
-const BRIEF_FIELDS = [
-  { key: "style",         label: "Стиль" },
-  { key: "area",          label: "Площадь (м²)" },
-  { key: "budget",        label: "Бюджет (₽)" },
-  { key: "rooms",         label: "Комнаты" },
-  { key: "color_palette", label: "Цветовая палитра" },
-  { key: "furniture",     label: "Мебель" },
-  { key: "restrictions",  label: "Ограничения" },
-  { key: "wishes",        label: "Пожелания" },
-  { key: "extra",         label: "Дополнительно" },
-];
 
 const DOC_TYPES: Record<string, string> = { contract: "Договор", act: "Акт", invoice: "Счёт", other: "Документ" };
 
@@ -147,6 +138,8 @@ function ClientDashboard({ session, projectToken, onLogout }: { session: Session
   const [chatId, setChatId] = useState<number | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [brief, setBrief] = useState<Brief | null>(null);
+  const [briefTemplate, setBriefTemplate] = useState<BriefField[]>([]);
+  const [briefIntro, setBriefIntro] = useState("");
   const [references, setReferences] = useState<Reference[]>([]);
   const [documents, setDocuments] = useState<ProjectDoc[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -182,16 +175,25 @@ function ClientDashboard({ session, projectToken, onLogout }: { session: Session
   }, [projectToken]);
 
   const loadExtras = useCallback(async (pid: number) => {
-    const [bR, rfR, doR, paR] = await Promise.allSettled([
+    const [bR, rfR, doR, paR, tmplR] = await Promise.allSettled([
       fetch(`${CRM_API}?action=brief&project_id=${pid}`),
       fetch(`${CRM_API}?action=references&project_id=${pid}`),
       fetch(`${CRM_API}?action=documents&project_id=${pid}`),
       fetch(`${CRM_API}?action=payments&project_id=${pid}`),
+      fetch(`${SETTINGS_API}?action=brief_template`),
     ]);
     if (bR.status === "fulfilled") { const d = await bR.value.json(); if (d.ok && d.brief) { setBrief(d.brief); setClientComment(d.brief.client_comment || ""); } }
     if (rfR.status === "fulfilled") { const d = await rfR.value.json(); if (d.ok) setReferences(d.references || []); }
     if (doR.status === "fulfilled") { const d = await doR.value.json(); if (d.ok) setDocuments(d.documents || []); }
     if (paR.status === "fulfilled") { const d = await paR.value.json(); if (d.ok) { setPayments(d.payments || []); setPayTotal(d.total || 0); setPayPaid(d.paid || 0); } }
+    if (tmplR.status === "fulfilled") {
+      const d = await tmplR.value.json();
+      if (d.ok && d.template) {
+        const fields = typeof d.template.fields === "string" ? JSON.parse(d.template.fields) : d.template.fields;
+        if (fields?.length) setBriefTemplate(fields.filter((f: BriefField) => f.enabled));
+        if (d.template.intro) setBriefIntro(d.template.intro);
+      }
+    }
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -489,27 +491,61 @@ function ClientDashboard({ session, projectToken, onLogout }: { session: Session
         {/* БРИФ */}
         {tab === "brief" && (
           <div className="space-y-4">
-            <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-              <div className="px-4 py-3 border-b border-gray-100">
-                <p className="text-sm font-semibold text-gray-800">Параметры проекта</p>
-                <p className="text-xs text-gray-400 mt-0.5">Заполнено дизайнером</p>
+            {/* Вступительный текст от дизайнера */}
+            {briefIntro && (
+              <div className="bg-white rounded-2xl shadow-sm p-4 border-l-4 border-gray-900">
+                <p className="text-sm text-gray-700 leading-relaxed">{briefIntro}</p>
               </div>
-              {!brief
-                ? <div className="text-center py-10 text-gray-400 text-sm">Бриф ещё не заполнен дизайнером</div>
-                : <div className="divide-y divide-gray-50">
-                    {BRIEF_FIELDS.filter(f => brief[f.key as keyof Brief]).map(f => (
-                      <div key={f.key} className="flex gap-3 px-4 py-3">
-                        <p className="text-xs text-gray-400 font-medium w-32 shrink-0 mt-0.5">{f.label}</p>
-                        <p className="text-sm text-gray-800">{String(brief[f.key as keyof Brief])}</p>
+            )}
+
+            {/* Поля из шаблона */}
+            {briefTemplate.length > 0 ? (
+              <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                <div className="px-4 py-3 border-b border-gray-100">
+                  <p className="text-sm font-semibold text-gray-800">Параметры проекта</p>
+                  <p className="text-xs text-gray-400 mt-0.5">Заполнено дизайнером</p>
+                </div>
+                {!brief || briefTemplate.every(f => !brief[f.key])
+                  ? <div className="text-center py-10 text-gray-400 text-sm">Дизайнер ещё не заполнил данные</div>
+                  : <div className="divide-y divide-gray-50">
+                      {briefTemplate.filter(f => brief && brief[f.key]).map(f => (
+                        <div key={f.key} className="flex gap-3 px-4 py-3">
+                          <p className="text-xs text-gray-400 font-medium w-36 shrink-0 mt-0.5">{f.label}</p>
+                          <p className="text-sm text-gray-800">{String(brief![f.key] ?? "")}</p>
+                        </div>
+                      ))}
+                    </div>
+                }
+              </div>
+            ) : brief ? (
+              /* Fallback — стандартные поля если нет шаблона */
+              <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                <div className="px-4 py-3 border-b border-gray-100">
+                  <p className="text-sm font-semibold text-gray-800">Параметры проекта</p>
+                </div>
+                <div className="divide-y divide-gray-50">
+                  {(["style","area","budget","rooms","color_palette","furniture","restrictions","wishes","extra"] as const)
+                    .filter(k => brief[k])
+                    .map(k => (
+                      <div key={k} className="flex gap-3 px-4 py-3">
+                        <p className="text-xs text-gray-400 font-medium w-36 shrink-0 mt-0.5">{k}</p>
+                        <p className="text-sm text-gray-800">{String(brief[k])}</p>
                       </div>
                     ))}
-                  </div>
-              }
-            </div>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-white rounded-2xl shadow-sm text-center py-12 text-gray-400 text-sm">
+                Бриф ещё не заполнен
+              </div>
+            )}
+
+            {/* Комментарий клиента */}
             <div className="bg-white rounded-2xl shadow-sm p-4">
-              <p className="text-sm font-semibold text-gray-800 mb-2">Ваши комментарии</p>
+              <p className="text-sm font-semibold text-gray-800 mb-1">Ваши комментарии</p>
+              <p className="text-xs text-gray-400 mb-3">Уточнения и пожелания к параметрам проекта</p>
               <textarea value={clientComment} onChange={e => setClientComment(e.target.value)}
-                rows={4} placeholder="Уточнения, пожелания, правки к брифу..."
+                rows={4} placeholder="Напишите дизайнеру ваши уточнения, правки или дополнительные пожелания..."
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm placeholder:text-gray-400 focus:outline-none focus:border-gray-400 resize-none" />
               <button onClick={saveComment} disabled={savingComment}
                 className="mt-2 px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-xl hover:bg-gray-800 disabled:opacity-50 flex items-center gap-2">

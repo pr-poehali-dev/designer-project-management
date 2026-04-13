@@ -149,8 +149,8 @@ export default function ClientDashboard({ session, projectToken, onLogout }: Pro
   };
 
   const allItems = estimates.length > 0 ? estimates.flatMap(e => e.items) : items;
-  const subtotal = allItems.reduce((s, i) => s + i.quantity * i.price, 0);
-  const disc = project ? subtotal * (project.discount_percent || 0) / 100 : 0;
+  const subtotal = allItems.reduce((s, i) => s + Number(i.quantity) * Number(i.price), 0);
+  const disc = project ? subtotal * (Number(project.discount_percent) || 0) / 100 : 0;
   const afterDisc = subtotal - disc;
   const vatRate = project?.vat_rate || 20;
   const vatMode = project?.vat_mode || "none";

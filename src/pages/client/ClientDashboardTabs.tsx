@@ -98,10 +98,10 @@ export default function ClientDashboardTabs({
                       <tr key={item.id} className="border-b border-gray-50 hover:bg-gray-50/50">
                         <td className="py-3 px-4 text-xs text-gray-300">{i+1}</td>
                         <td className="py-3 px-4 text-sm text-gray-800">{item.name}</td>
-                        <td className="py-3 px-4 text-sm text-right text-gray-500 tabular-nums">{item.quantity}</td>
+                        <td className="py-3 px-4 text-sm text-right text-gray-500 tabular-nums">{Number(item.quantity)}</td>
                         <td className="py-3 px-4 text-sm text-center text-gray-400">{item.unit}</td>
                         <td className="py-3 px-4 text-sm text-right text-gray-500 tabular-nums">{Number(item.price).toLocaleString("ru")} ₽</td>
-                        <td className="py-3 px-4 text-sm text-right font-medium text-gray-800 tabular-nums">{(item.quantity * item.price).toLocaleString("ru")} ₽</td>
+                        <td className="py-3 px-4 text-sm text-right font-medium text-gray-800 tabular-nums">{(Number(item.quantity) * Number(item.price)).toLocaleString("ru")} ₽</td>
                       </tr>
                     ))}
                   </tbody>

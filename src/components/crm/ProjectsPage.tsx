@@ -102,8 +102,13 @@ export default function ProjectsPage({ openProjectId, onClearProject }: {
                   <td className="px-5 py-4 text-sm text-ink-muted">
                     {p.deadline ? new Date(p.deadline).toLocaleDateString("ru") : "—"}
                   </td>
-                  <td className="px-5 py-4 text-sm text-ink-muted tabular-nums">
-                    {p.total ? `${p.total.toLocaleString("ru")} ₽` : "—"}
+                  <td className="px-5 py-4 tabular-nums">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-ink-muted">{p.total ? `${p.total.toLocaleString("ru")} ₽` : "—"}</span>
+                      {p.main_estimate_approved && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-green-50 text-green-600 font-medium whitespace-nowrap">✓ Утверждена</span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-5 py-4">
                     <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${statusStyle[p.status] || statusStyle.draft}`}>

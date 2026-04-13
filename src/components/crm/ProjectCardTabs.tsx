@@ -13,6 +13,7 @@ interface Props {
   estimates: Estimate[];
   addingEstimate: boolean;
   onAddEstimate: () => void;
+  onDeleteEstimate: (id: number) => void;
 
   // Brief
   brief: Brief;
@@ -47,7 +48,7 @@ interface Props {
 
 export default function ProjectCardTabs({
   tab, setTab, projectId, project,
-  estimates, addingEstimate, onAddEstimate,
+  estimates, addingEstimate, onAddEstimate, onDeleteEstimate,
   brief, briefSaved, briefLoaded, savingBrief, setBrief, onSaveBrief,
   documents, uploadingDoc, onDocUpload,
   payments, payTotal, payPaid, newPayment, setNewPayment, addingPayment, onAddPayment, onTogglePayment,
@@ -83,18 +84,24 @@ export default function ProjectCardTabs({
             title="Основная смета"
           />
           {estimates.map(est => (
-            <EstimateTable
-              key={est.id}
-              projectId={projectId}
-              estimateId={est.id}
-              title={est.name}
-              onUpdateTitle={(name) => {
-                fetch(`${API}?action=estimates&id=${est.id}`, {
-                  method: "PUT", headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ name }),
-                }).catch(() => {/* ignore */});
-              }}
-            />
+            <div key={est.id} className="relative group">
+              <EstimateTable
+                projectId={projectId}
+                estimateId={est.id}
+                title={est.name}
+                onUpdateTitle={(name) => {
+                  fetch(`${API}?action=estimates&id=${est.id}`, {
+                    method: "PUT", headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ name }),
+                  }).catch(() => {/* ignore */});
+                }}
+              />
+              <button
+                onClick={() => { if (confirm("Удалить смету и все её позиции?")) onDeleteEstimate(est.id); }}
+                className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity w-7 h-7 rounded-lg bg-red-50 hover:bg-red-100 flex items-center justify-center text-red-400 hover:text-red-600">
+                <Icon name="Trash2" size={13} />
+              </button>
+            </div>
           ))}
           <button onClick={onAddEstimate} disabled={addingEstimate}
             className="w-full py-4 border-2 border-dashed border-snow-dark hover:border-ink-faint rounded-2xl text-sm text-ink-muted font-medium transition-all flex items-center justify-center gap-2 hover:bg-snow/50">

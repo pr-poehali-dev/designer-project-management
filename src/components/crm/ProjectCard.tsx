@@ -108,6 +108,13 @@ export default function ProjectCard({ projectId, onBack }: { projectId: number; 
     } catch { /* ignore */ } finally { setAddingEstimate(false); }
   };
 
+  const deleteEstimate = async (id: number) => {
+    try {
+      await fetch(`${API}?action=estimates&id=${id}`, { method: "DELETE" });
+      setEstimates(prev => prev.filter(e => e.id !== id));
+    } catch { /* ignore */ }
+  };
+
   const addMember = async () => {
     if (!newMember.member_name.trim()) return;
     try {
@@ -363,6 +370,7 @@ export default function ProjectCard({ projectId, onBack }: { projectId: number; 
         estimates={estimates}
         addingEstimate={addingEstimate}
         onAddEstimate={addEstimate}
+        onDeleteEstimate={deleteEstimate}
         brief={brief}
         briefSaved={briefSaved}
         briefLoaded={briefLoaded}

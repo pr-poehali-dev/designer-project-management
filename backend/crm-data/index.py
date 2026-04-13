@@ -470,6 +470,12 @@ def handle_estimates(method, params, body):
                 cur.execute(f"UPDATE project_estimates SET {', '.join(sets)} WHERE id = %s", vals)
                 conn.commit()
             return json_resp({"ok": True})
+
+        if method == "DELETE" and estimate_id:
+            cur.execute("DELETE FROM work_items WHERE estimate_id = %s", (estimate_id,))
+            cur.execute("DELETE FROM project_estimates WHERE id = %s", (estimate_id,))
+            conn.commit()
+            return json_resp({"ok": True})
     finally:
         conn.close()
 

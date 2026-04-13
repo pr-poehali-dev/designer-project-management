@@ -93,16 +93,17 @@ def handler(event: dict, context) -> dict:
             if not proj:
                 return json_resp({"ok": False, "error": "Project not found"}, 404)
 
-            # Загружаем реквизиты дизайнера (settings)
-            cur.execute("SELECT key, value FROM settings")
-            settings = {r["key"]: r["value"] for r in cur.fetchall()}
+            # Загружаем реквизиты дизайнера
+            cur.execute("SELECT * FROM company_info ORDER BY id LIMIT 1")
+            row = cur.fetchone()
+            settings = dict(row) if row else {}
 
             # Считаем итоговую сумму утверждённых смет
             cur.execute("""
                 SELECT COALESCE(SUM(wi.quantity * wi.price), 0) as subtotal,
                        e.discount_percent, e.vat_mode, e.vat_rate
                 FROM project_estimates e
-                LEFT JOIN work_items wi ON wi.estimate_id = e.id
+                LEFT JOIN work_items wi ON wi.estimate_id = e.id AND wi.sort_order >= 0
                 WHERE e.project_id = %s AND e.is_approved = TRUE
                 GROUP BY e.id, e.discount_percent, e.vat_mode, e.vat_rate
             """, (project_id,))
@@ -118,7 +119,7 @@ def handler(event: dict, context) -> dict:
                 total += after
 
             if proj["main_estimate_approved"]:
-                cur.execute("SELECT COALESCE(SUM(quantity * price), 0) as sub FROM work_items WHERE project_id = %s AND estimate_id IS NULL", (project_id,))
+                cur.execute("SELECT COALESCE(SUM(quantity * price), 0) as sub FROM work_items WHERE project_id = %s AND estimate_id IS NULL AND sort_order >= 0", (project_id,))
                 main_sub = float(cur.fetchone()["sub"])
                 disc = main_sub * float(proj["discount_percent"] or 0) / 100
                 after = main_sub - disc
@@ -158,8 +159,8 @@ def handler(event: dict, context) -> dict:
                 "{{designer_bik}}": settings.get("bik") or "",
                 "{{designer_checking_account}}": settings.get("checking_account") or "",
                 "{{designer_corr_account}}": settings.get("corr_account") or "",
-                "{{designer_phone}}": settings.get("phone") or "",
-                "{{designer_email}}": settings.get("email") or "",
+                "{{designer_phone}}": settings.get("contact_phone") or settings.get("phone") or "",
+                "{{designer_email}}": settings.get("contact_email") or settings.get("email") or "",
             }
 
             # Подставляем переменные

@@ -148,7 +148,8 @@ export default function ClientDashboard({ session, projectToken, onLogout }: Pro
     setDocuments(p => p.map(d => d.id === docId ? { ...d, is_signed: true } : d));
   };
 
-  const allItems = estimates.length > 0 ? estimates.flatMap(e => e.items) : items;
+  const estimateItems = estimates.flatMap(e => e.items);
+  const allItems = estimateItems.length > 0 ? estimateItems : items;
   const subtotal = allItems.reduce((s, i) => s + Number(i.quantity) * Number(i.price), 0);
   const disc = project ? subtotal * (Number(project.discount_percent) || 0) / 100 : 0;
   const afterDisc = subtotal - disc;

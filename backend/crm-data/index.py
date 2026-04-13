@@ -559,6 +559,119 @@ def handle_project_chat(method, params, body):
         conn.close()
 
 
+STAGE_KEYS = ["survey", "concept", "working_project", "visualization", "supervision", "handover"]
+STAGE_LABELS = {
+    "survey": "Замер",
+    "concept": "Концепция",
+    "working_project": "Рабочий проект",
+    "visualization": "Визуализация",
+    "supervision": "Авторский надзор",
+    "handover": "Сдача объекта",
+}
+
+
+def handle_stages(method, params, body):
+    """Этапы проекта: статус, комментарий, файлы/фото."""
+    import base64 as _base64, uuid as _uuid, boto3 as _boto3, os as _os
+    conn = get_db()
+    try:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        project_id = params.get("project_id") or body.get("project_id")
+        sub = params.get("sub", "")
+
+        if method == "GET" and not sub:
+            # Инициализируем недостающие этапы
+            for key in STAGE_KEYS:
+                cur.execute(
+                    "INSERT INTO project_stages (project_id, stage_key) VALUES (%s, %s) ON CONFLICT (project_id, stage_key) DO NOTHING",
+                    (project_id, key)
+                )
+            conn.commit()
+
+            cur.execute("SELECT * FROM project_stages WHERE project_id = %s ORDER BY id", (project_id,))
+            stages_raw = {r["stage_key"]: dict(r) for r in cur.fetchall()}
+
+            result = []
+            for key in STAGE_KEYS:
+                stage = stages_raw.get(key, {})
+                stage_id = stage.get("id")
+                files = []
+                if stage_id:
+                    cur.execute("SELECT * FROM stage_files WHERE stage_id = %s ORDER BY created_at ASC", (stage_id,))
+                    files = [dict(f) for f in cur.fetchall()]
+                result.append({
+                    "id": stage_id,
+                    "project_id": int(project_id),
+                    "stage_key": key,
+                    "label": STAGE_LABELS[key],
+                    "status": stage.get("status", "pending"),
+                    "comment": stage.get("comment", ""),
+                    "completed_at": stage.get("completed_at"),
+                    "files": files,
+                })
+            return json_resp({"ok": True, "stages": result})
+
+        if method == "PUT" and not sub:
+            stage_key = body.get("stage_key")
+            status = body.get("status")
+            comment = body.get("comment")
+            sets, vals = [], []
+            if status is not None:
+                sets.append("status = %s"); vals.append(status)
+                if status == "done":
+                    sets.append("completed_at = NOW()")
+                elif status == "pending":
+                    sets.append("completed_at = NULL")
+            if comment is not None:
+                sets.append("comment = %s"); vals.append(comment)
+            if sets:
+                sets.append("updated_at = NOW()")
+                vals += [project_id, stage_key]
+                cur.execute(f"UPDATE project_stages SET {', '.join(sets)} WHERE project_id = %s AND stage_key = %s", vals)
+                conn.commit()
+            return json_resp({"ok": True})
+
+        if method == "POST" and sub == "file":
+            stage_key = body.get("stage_key")
+            file_data = body.get("file")
+            mime = body.get("mime", "image/jpeg")
+            name = body.get("name", "Файл")
+            file_type = body.get("file_type", "photo")
+
+            cur.execute("SELECT id FROM project_stages WHERE project_id = %s AND stage_key = %s", (project_id, stage_key))
+            row = cur.fetchone()
+            if not row:
+                return json_resp({"ok": False, "error": "Stage not found"}, 404)
+            stage_id = row["id"]
+
+            raw = _base64.b64decode(file_data)
+            ext = mime.split("/")[-1].replace("jpeg", "jpg")
+            key = f"stages/{project_id}/{stage_key}/{_uuid.uuid4()}.{ext}"
+            s3 = _boto3.client("s3", endpoint_url="https://bucket.poehali.dev",
+                aws_access_key_id=_os.environ["AWS_ACCESS_KEY_ID"],
+                aws_secret_access_key=_os.environ["AWS_SECRET_ACCESS_KEY"])
+            s3.put_object(Bucket="files", Key=key, Body=raw, ContentType=mime, ACL="public-read")
+            url = f"https://cdn.poehali.dev/projects/{_os.environ['AWS_ACCESS_KEY_ID']}/bucket/{key}"
+
+            cur.execute(
+                "INSERT INTO stage_files (stage_id, project_id, name, url, mime, file_type) VALUES (%s, %s, %s, %s, %s, %s) RETURNING *",
+                (stage_id, project_id, name, url, mime, file_type)
+            )
+            f = dict(cur.fetchone())
+            conn.commit()
+            return json_resp({"ok": True, "file": f})
+
+        if method == "DELETE" and sub == "file":
+            file_id = params.get("file_id") or body.get("file_id")
+            cur.execute("UPDATE stage_files SET url = '' WHERE id = %s AND project_id = %s", (file_id, project_id))
+            conn.commit()
+            return json_resp({"ok": True})
+
+        return json_resp({"ok": False, "error": "Bad request"}, 400)
+    finally:
+        conn.close()
+
+
 def handle_partners(method, params, body):
     """CRUD для партнёров: магазины, поставщики, отделочники."""
     conn = get_db()
@@ -1006,5 +1119,7 @@ def handler(event: dict, context) -> dict:
         return handle_members(method, params, body)
     elif action == "partners":
         return handle_partners(method, params, body)
+    elif action == "stages":
+        return handle_stages(method, params, body)
 
     return json_resp({"ok": False, "error": f"Unknown action: {action}"}, 400)

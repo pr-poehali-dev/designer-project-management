@@ -14,7 +14,10 @@ export interface Reference { id: number; url: string; caption: string; uploaded_
 export interface ProjectDoc { id: number; name: string; url: string; doc_type: string; uploaded_by: string; is_signed: boolean; created_at: string; }
 export interface Payment { id: number; amount: number; label: string; is_paid: boolean; paid_at: string | null; }
 
-export type Tab = "estimates" | "brief" | "documents" | "payments" | "references";
+export type Tab = "project" | "documents" | "progress";
+
+export interface StageFile { id: number; stage_id: number; name: string; url: string; mime: string; file_type: string; created_at: string; }
+export interface Stage { id: number | null; project_id: number; stage_key: string; label: string; status: "pending" | "in_progress" | "done"; comment: string; completed_at: string | null; files: StageFile[]; }
 
 export const STATUS_OPTIONS = [
   { id: "draft", label: "Черновик" },

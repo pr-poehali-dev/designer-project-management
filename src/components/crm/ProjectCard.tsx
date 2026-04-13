@@ -12,7 +12,7 @@ import {
 } from "./ProjectCardTypes";
 
 export default function ProjectCard({ projectId, onBack }: { projectId: number; onBack: () => void }) {
-  const [tab, setTab] = useState<Tab>("estimates");
+  const [tab, setTab] = useState<Tab>("project");
   const [showChat, setShowChat] = useState(false);
   const [project, setProject] = useState<ProjectData | null>(null);
   const [estimates, setEstimates] = useState<Estimate[]>([]);

@@ -137,7 +137,7 @@ def handle_projects(method, params, body):
             return json_resp({"ok": True, "id": cur.fetchone()["id"]})
 
         if method in ("POST", "PUT") and project_id:
-            fields = ["name", "client_id", "status", "deadline", "discount_percent", "vat_mode", "vat_rate", "main_estimate_approved", "object_address", "object_type", "object_area", "project_duration"]
+            fields = ["name", "client_id", "status", "deadline", "discount_percent", "vat_mode", "vat_rate", "main_estimate_approved", "object_address", "object_type", "object_area", "project_duration", "object_comment"]
             sets, vals = [], []
             for f in fields:
                 if f in body:
@@ -603,10 +603,11 @@ def handle_stages(method, params, body):
                     "id": stage_id,
                     "project_id": int(project_id),
                     "stage_key": key,
-                    "label": STAGE_LABELS[key],
+                    "label": stage.get("label") or STAGE_LABELS[key],
                     "status": stage.get("status", "pending"),
                     "comment": stage.get("comment", ""),
                     "completed_at": stage.get("completed_at"),
+                    "employee_name": stage.get("employee_name", ""),
                     "files": files,
                 })
             return json_resp({"ok": True, "stages": result})
@@ -615,6 +616,8 @@ def handle_stages(method, params, body):
             stage_key = body.get("stage_key")
             status = body.get("status")
             comment = body.get("comment")
+            employee_name = body.get("employee_name")
+            label = body.get("label")
             sets, vals = [], []
             if status is not None:
                 sets.append("status = %s"); vals.append(status)
@@ -624,6 +627,10 @@ def handle_stages(method, params, body):
                     sets.append("completed_at = NULL")
             if comment is not None:
                 sets.append("comment = %s"); vals.append(comment)
+            if employee_name is not None:
+                sets.append("employee_name = %s"); vals.append(employee_name)
+            if label is not None:
+                sets.append("label = %s"); vals.append(label)
             if sets:
                 sets.append("updated_at = NOW()")
                 vals += [project_id, stage_key]
@@ -883,7 +890,7 @@ def handle_brief(method, params, body):
             return json_resp({"ok": True, "brief": None})
         if method in ("POST", "PUT"):
             known = ["style", "area", "budget", "rooms", "wishes", "color_palette",
-                     "furniture", "restrictions", "extra", "client_comment"]
+                     "furniture", "restrictions", "extra", "client_comment", "status"]
             sets, vals = [], []
             custom_data = {}
             for key, val in body.items():
@@ -1043,9 +1050,10 @@ def handle_payments(method, params, body):
             remaining = approved_total - paid
             return json_resp({"ok": True, "payments": payments, "total": approved_total, "paid": paid, "remaining": remaining})
         if method == "POST" and not body.get("action"):
+            due_date = body.get("due_date") or None
             cur.execute(
-                "INSERT INTO project_payments (project_id, amount, label, is_paid) VALUES (%s, %s, %s, %s) RETURNING *",
-                (project_id, body.get("amount", 0), body.get("label", ""), body.get("is_paid", False))
+                "INSERT INTO project_payments (project_id, amount, label, is_paid, due_date) VALUES (%s, %s, %s, %s, %s) RETURNING *",
+                (project_id, body.get("amount", 0), body.get("label", ""), body.get("is_paid", False), due_date)
             )
             pay = dict(cur.fetchone())
             conn.commit()
@@ -1063,6 +1071,55 @@ def handle_payments(method, params, body):
             cur.execute("DELETE FROM project_payments WHERE id = %s AND project_id = %s", (pay_id, project_id))
             conn.commit()
             return json_resp({"ok": True})
+    finally:
+        conn.close()
+
+
+def handle_acts(method, params, body):
+    """Акты выполненных работ и счета проекта."""
+    import base64 as _b64, uuid as _uuid, boto3 as _boto3, os as _os
+    project_id = params.get("project_id") or body.get("project_id")
+    conn = get_db()
+    try:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+        if method == "GET":
+            cur.execute("SELECT * FROM project_acts WHERE project_id = %s ORDER BY created_at ASC", (project_id,))
+            acts = [dict(r) for r in cur.fetchall()]
+            cur.execute("SELECT * FROM project_invoices WHERE project_id = %s ORDER BY created_at ASC", (project_id,))
+            invoices = [dict(r) for r in cur.fetchall()]
+            return json_resp({"ok": True, "acts": acts, "invoices": invoices})
+
+        if method == "POST":
+            kind = body.get("kind", "act")
+            table = "project_acts" if kind == "act" else "project_invoices"
+            name = body.get("name", "Акт выполненных работ" if kind == "act" else "Счёт")
+            amount = body.get("amount", 0)
+            cur.execute(
+                f"INSERT INTO {table} (project_id, name, amount) VALUES (%s, %s, %s) RETURNING *",
+                (project_id, name, amount)
+            )
+            row = dict(cur.fetchone())
+            conn.commit()
+            return json_resp({"ok": True, "item": row})
+
+        if method == "PUT":
+            kind = body.get("kind", "act")
+            table = "project_acts" if kind == "act" else "project_invoices"
+            item_id = body.get("id") or params.get("id")
+            fields = ["name", "amount", "status"]
+            sets, vals = [], []
+            for f in fields:
+                if f in body:
+                    sets.append(f"{f} = %s")
+                    vals.append(body[f])
+            if sets:
+                vals.append(item_id)
+                vals.append(project_id)
+                cur.execute(f"UPDATE {table} SET {', '.join(sets)} WHERE id = %s AND project_id = %s", vals)
+                conn.commit()
+            return json_resp({"ok": True})
+
     finally:
         conn.close()
 
@@ -1121,5 +1178,7 @@ def handler(event: dict, context) -> dict:
         return handle_partners(method, params, body)
     elif action == "stages":
         return handle_stages(method, params, body)
+    elif action == "acts":
+        return handle_acts(method, params, body)
 
     return json_resp({"ok": False, "error": f"Unknown action: {action}"}, 400)

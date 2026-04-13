@@ -2,22 +2,34 @@ export interface ProjectData {
   id: number; name: string; client_id: number | null; client_name: string;
   status: string; deadline: string; discount_percent: number;
   vat_mode: string; vat_rate: number;
-  object_address: string; object_type: string; object_area: string; project_duration: string;
+  object_address: string; object_type: string; object_area: string;
+  project_duration: string; object_comment: string;
 }
 export interface Estimate {
   id: number; name: string; discount_percent: number; vat_mode: string; vat_rate: number;
+  is_approved?: boolean;
 }
 export interface TeamMember { id: number; member_name: string; role: string; }
 export interface ClientShort { id: number; name: string; }
-export interface Brief { style: string; area: string; budget: string; rooms: string; wishes: string; color_palette: string; furniture: string; restrictions: string; extra: string; client_comment: string; }
+export interface Brief {
+  style: string; area: string; budget: string; rooms: string; wishes: string;
+  color_palette: string; furniture: string; restrictions: string; extra: string;
+  client_comment: string; status: string;
+}
 export interface Reference { id: number; url: string; caption: string; uploaded_by: string; }
 export interface ProjectDoc { id: number; name: string; url: string; doc_type: string; uploaded_by: string; is_signed: boolean; created_at: string; }
-export interface Payment { id: number; amount: number; label: string; is_paid: boolean; paid_at: string | null; }
+export interface Payment { id: number; amount: number; label: string; is_paid: boolean; paid_at: string | null; due_date: string | null; }
+export interface Act { id: number; name: string; amount: number; status: string; file_url: string | null; created_at: string; }
+export interface Invoice { id: number; name: string; amount: number; status: string; file_url: string | null; created_at: string; }
 
 export type Tab = "project" | "documents" | "progress";
 
 export interface StageFile { id: number; stage_id: number; name: string; url: string; mime: string; file_type: string; created_at: string; }
-export interface Stage { id: number | null; project_id: number; stage_key: string; label: string; status: "pending" | "in_progress" | "done"; comment: string; completed_at: string | null; files: StageFile[]; }
+export interface Stage {
+  id: number | null; project_id: number; stage_key: string; label: string;
+  status: "pending" | "in_progress" | "done"; comment: string;
+  completed_at: string | null; employee_name: string; files: StageFile[];
+}
 
 export const STATUS_OPTIONS = [
   { id: "draft", label: "Черновик" },
@@ -35,6 +47,7 @@ export const VAT_OPTIONS = [
 export const BRIEF_EMPTY: Brief = {
   style: "", area: "", budget: "", rooms: "", wishes: "",
   color_palette: "", furniture: "", restrictions: "", extra: "", client_comment: "",
+  status: "draft",
 };
 
 export const API = "https://functions.poehali.dev/21fcd16a-d247-4b03-8505-0be9497f8386";

@@ -1,0 +1,15 @@
+CREATE TABLE IF NOT EXISTS partners (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL DEFAULT '',
+    category VARCHAR(100) NOT NULL DEFAULT '',
+    services TEXT NOT NULL DEFAULT '',
+    phone VARCHAR(50) NOT NULL DEFAULT '',
+    email VARCHAR(255) NOT NULL DEFAULT '',
+    address TEXT NOT NULL DEFAULT '',
+    website VARCHAR(255) NOT NULL DEFAULT '',
+    contact_person VARCHAR(255) NOT NULL DEFAULT '',
+    discount_percent NUMERIC(5,2) NOT NULL DEFAULT 0,
+    notes TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);

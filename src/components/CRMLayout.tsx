@@ -12,26 +12,31 @@ import ProfilePage from "@/components/crm/ProfilePage";
 import CompanyPage from "@/components/crm/CompanyPage";
 import GuildPage from "@/components/crm/GuildPage";
 import TasksPage from "@/components/crm/TasksPage";
+import PartnersPage from "@/components/crm/PartnersPage";
 import AIAssistant from "@/components/crm/AIAssistant";
 
 interface Props {
   onLogout: () => void;
 }
 
-const NAV_ITEMS = [
+const NAV_MAIN = [
   { id: "dashboard", label: "Дашборд", icon: "LayoutDashboard" },
   { id: "projects", label: "Проекты", icon: "FolderKanban" },
-  { id: "clients", label: "Клиенты", icon: "Users" },
-  { id: "team", label: "Команда", icon: "UserSquare2" },
+  { id: "tasks", label: "Задачи", icon: "CheckSquare" },
   { id: "finance", label: "Финансы", icon: "TrendingUp" },
+  { id: "chats", label: "Чаты", icon: "MessageSquare" },
   { id: "contracts", label: "Шаблоны", icon: "FileText" },
   { id: "marketing", label: "Маркетинг", icon: "Megaphone" },
-  { id: "chats", label: "Чаты", icon: "MessageSquare" },
-  { id: "tasks", label: "Задачи", icon: "CheckSquare" },
+];
+
+const NAV_COUNTERPARTIES = [
+  { id: "clients", label: "Клиенты", icon: "Users" },
+  { id: "team", label: "Команда", icon: "UserSquare2" },
+  { id: "partners", label: "Партнёры", icon: "Handshake" },
 ];
 
 const BOTTOM_NAV = [
-  { id: "guild", label: "Гильдия", icon: "Users" },
+  { id: "guild", label: "Гильдия", icon: "Star" },
   { id: "profile", label: "Профиль", icon: "UserCircle" },
   { id: "company", label: "Компания", icon: "Building2" },
 ];
@@ -46,6 +51,7 @@ export default function CRMLayout({ onLogout }: Props) {
   const [openProjectId, setOpenProjectId] = useState<number | null>(null);
   const [openChatWith, setOpenChatWith] = useState<{ name: string; initials: string; avatar_url?: string } | null>(null);
   const [chatUnread, setChatUnread] = useState(0);
+  const [counterpartiesOpen, setCounterpartiesOpen] = useState(true);
 
   const loadProfile = useCallback(async () => {
     try {
@@ -75,12 +81,20 @@ export default function CRMLayout({ onLogout }: Props) {
     return () => clearInterval(iv);
   }, []);
 
+  // Открываем группу если активен один из её пунктов
+  useEffect(() => {
+    if (NAV_COUNTERPARTIES.some(i => i.id === active)) setCounterpartiesOpen(true);
+  }, [active]);
+
+  const navigate = (id: string) => { setActive(id); setOpenProjectId(null); };
+
   const renderPage = () => {
     switch (active) {
       case "dashboard": return <DashboardPage />;
       case "projects": return <ProjectsPage openProjectId={openProjectId} onClearProject={() => setOpenProjectId(null)} />;
       case "clients": return <ClientsPage onOpenProject={(id: number) => { setOpenProjectId(id); setActive("projects"); }} />;
       case "team": return <TeamPage />;
+      case "partners": return <PartnersPage />;
       case "finance": return <FinancePage />;
       case "contracts": return <ContractsPage />;
       case "marketing": return <MarketingPage />;
@@ -103,58 +117,81 @@ export default function CRMLayout({ onLogout }: Props) {
     }
   };
 
+  const NavItem = ({ item, onClick }: { item: { id: string; label: string; icon: string }; onClick?: () => void }) => (
+    <button
+      onClick={onClick || (() => navigate(item.id))}
+      className={`sidebar-item w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-lg mb-0.5 ${
+        active === item.id ? "active" : "text-ink-muted hover:text-ink hover:bg-snow"
+      }`}
+    >
+      <div className="relative shrink-0">
+        <Icon name={item.icon} fallback="Circle" size={16} />
+        {item.id === "chats" && chatUnread > 0 && (
+          <span className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 rounded-full bg-amber-500 text-white text-[8px] font-bold flex items-center justify-center">
+            {chatUnread > 9 ? "9+" : chatUnread}
+          </span>
+        )}
+      </div>
+      {!collapsed && <span className="flex-1 text-left">{item.label}</span>}
+      {!collapsed && item.id === "chats" && chatUnread > 0 && (
+        <span className="w-5 h-5 rounded-full bg-amber-500 text-white text-[9px] font-bold flex items-center justify-center shrink-0">
+          {chatUnread > 9 ? "9+" : chatUnread}
+        </span>
+      )}
+    </button>
+  );
+
+  const PAGE_TITLES: Record<string, string> = {
+    dashboard: "Дашборд", projects: "Проекты", clients: "Клиенты",
+    team: "Команда", partners: "Партнёры", finance: "Финансы",
+    contracts: "Шаблоны", marketing: "Маркетинг", chats: "Чаты",
+    tasks: "Задачи", profile: "Профиль", company: "Компания", guild: "Гильдия",
+  };
+
   return (
     <div className="flex h-screen bg-snow font-body overflow-hidden">
       {/* Sidebar */}
       <aside className={`flex flex-col bg-white border-r border-snow-dark transition-all duration-300 ${collapsed ? "w-16" : "w-56"}`}>
         <div className="flex items-center justify-between px-4 h-16 border-b border-snow-dark">
-          {!collapsed && (
-            <span className="font-display text-lg font-bold tracking-tight">Арена</span>
-          )}
-          <button
-            onClick={() => setCollapsed(!collapsed)}
-            className="text-ink-faint hover:text-ink transition-colors ml-auto"
-          >
+          {!collapsed && <span className="font-display text-lg font-bold tracking-tight">Арена</span>}
+          <button onClick={() => setCollapsed(!collapsed)} className="text-ink-faint hover:text-ink transition-colors ml-auto">
             <Icon name={collapsed ? "PanelLeftOpen" : "PanelLeftClose"} size={16} />
           </button>
         </div>
 
-        <nav className="flex-1 py-2 px-2 overflow-y-auto">
-          {NAV_ITEMS.map(item => (
+        <nav className="flex-1 py-2 px-2 overflow-y-auto space-y-0.5">
+          {/* Основные пункты */}
+          {NAV_MAIN.map(item => <NavItem key={item.id} item={item} />)}
+
+          {/* Группа Контрагенты */}
+          <div className="pt-1">
             <button
-              key={item.id}
-              onClick={() => { setActive(item.id); setOpenProjectId(null); }}
-              className={`sidebar-item w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-lg mb-0.5 ${
-                active === item.id ? "active" : "text-ink-muted hover:text-ink hover:bg-snow"
-              }`}
+              onClick={() => setCounterpartiesOpen(o => !o)}
+              className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-lg transition-colors ${collapsed ? "justify-center" : ""} text-ink-faint hover:text-ink hover:bg-snow`}
             >
-              <div className="relative shrink-0">
-                <Icon name={item.icon} fallback="Circle" size={16} />
-                {item.id === "chats" && chatUnread > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 rounded-full bg-amber-500 text-white text-[8px] font-bold flex items-center justify-center">
-                    {chatUnread > 9 ? "9+" : chatUnread}
-                  </span>
-                )}
-              </div>
-              {!collapsed && <span className="flex-1">{item.label}</span>}
-              {!collapsed && item.id === "chats" && chatUnread > 0 && (
-                <span className="w-5 h-5 rounded-full bg-amber-500 text-white text-[9px] font-bold flex items-center justify-center shrink-0">
-                  {chatUnread > 9 ? "9+" : chatUnread}
-                </span>
+              {!collapsed && (
+                <>
+                  <span className="text-[10px] font-semibold uppercase tracking-wider flex-1 text-left">Контрагенты</span>
+                  <Icon name={counterpartiesOpen ? "ChevronDown" : "ChevronRight"} size={12} />
+                </>
               )}
+              {collapsed && <Icon name="Users2" size={16} fallback="Users" />}
             </button>
-          ))}
+
+            {(counterpartiesOpen || collapsed) && (
+              <div className={collapsed ? "" : "pl-2"}>
+                {NAV_COUNTERPARTIES.map(item => <NavItem key={item.id} item={item} />)}
+              </div>
+            )}
+          </div>
         </nav>
 
         <div className="border-t border-snow-dark py-2 px-2">
           {BOTTOM_NAV.map(item => (
-            <button
-              key={item.id}
-              onClick={() => setActive(item.id)}
+            <button key={item.id} onClick={() => setActive(item.id)}
               className={`sidebar-item w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-lg mb-0.5 ${
                 active === item.id ? "active" : "text-ink-muted hover:text-ink hover:bg-snow"
-              }`}
-            >
+              }`}>
               <Icon name={item.icon} fallback="Circle" size={16} className="shrink-0" />
               {!collapsed && <span>{item.label}</span>}
             </button>
@@ -188,9 +225,7 @@ export default function CRMLayout({ onLogout }: Props) {
       {/* Main */}
       <main className="flex-1 overflow-y-auto">
         <div className="sticky top-0 z-10 flex items-center justify-between px-8 h-16 bg-white/80 backdrop-blur-lg border-b border-snow-dark">
-          <h1 className="font-display text-lg font-semibold tracking-tight">
-            {[...NAV_ITEMS, ...BOTTOM_NAV].find(n => n.id === active)?.label}
-          </h1>
+          <h1 className="font-display text-lg font-semibold">{PAGE_TITLES[active] || ""}</h1>
           <div className="flex items-center gap-3">
             <button className="relative text-ink-faint hover:text-ink transition-colors">
               <Icon name="Bell" size={18} />

@@ -559,6 +559,64 @@ def handle_project_chat(method, params, body):
         conn.close()
 
 
+def handle_partners(method, params, body):
+    """CRUD для партнёров: магазины, поставщики, отделочники."""
+    conn = get_db()
+    try:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        partner_id = params.get("id")
+
+        if method == "GET" and not partner_id:
+            category = params.get("category", "")
+            if category:
+                cur.execute("SELECT * FROM partners WHERE category = %s ORDER BY name ASC", (category,))
+            else:
+                cur.execute("SELECT * FROM partners ORDER BY name ASC")
+            return json_resp({"ok": True, "partners": [dict(r) for r in cur.fetchall()]})
+
+        if method == "GET" and partner_id:
+            cur.execute("SELECT * FROM partners WHERE id = %s", (partner_id,))
+            row = cur.fetchone()
+            if not row:
+                return json_resp({"ok": False, "error": "Not found"}, 404)
+            return json_resp({"ok": True, "partner": dict(row)})
+
+        if method == "POST" and not partner_id:
+            fields = ["name", "category", "services", "phone", "email", "address", "website", "contact_person", "discount_percent", "notes"]
+            cols = [f for f in fields if f in body]
+            vals = [body[f] for f in cols]
+            placeholders = ", ".join(["%s"] * len(cols))
+            cur.execute(
+                f"INSERT INTO partners ({', '.join(cols)}) VALUES ({placeholders}) RETURNING *",
+                vals
+            )
+            partner = dict(cur.fetchone())
+            conn.commit()
+            return json_resp({"ok": True, "partner": partner})
+
+        if method == "PUT" and partner_id:
+            fields = ["name", "category", "services", "phone", "email", "address", "website", "contact_person", "discount_percent", "notes"]
+            sets = [f"{f} = %s" for f in fields if f in body]
+            vals = [body[f] for f in fields if f in body]
+            if not sets:
+                return json_resp({"ok": False, "error": "No fields to update"})
+            sets.append("updated_at = NOW()")
+            vals.append(partner_id)
+            cur.execute(f"UPDATE partners SET {', '.join(sets)} WHERE id = %s RETURNING *", vals)
+            partner = cur.fetchone()
+            conn.commit()
+            return json_resp({"ok": True, "partner": dict(partner) if partner else {}})
+
+        if method == "DELETE" and partner_id:
+            cur.execute("DELETE FROM partners WHERE id = %s", (partner_id,))
+            conn.commit()
+            return json_resp({"ok": True})
+
+        return json_resp({"ok": False, "error": "Bad request"}, 400)
+    finally:
+        conn.close()
+
+
 def handle_members(method, params, body):
     """Список участников для выбора в команду: профиль дизайнера, команда проекта, клиент проекта, + доступные роли."""
     conn = get_db()
@@ -946,5 +1004,7 @@ def handler(event: dict, context) -> dict:
         return handle_payments(method, params, body)
     elif action == "members":
         return handle_members(method, params, body)
+    elif action == "partners":
+        return handle_partners(method, params, body)
 
     return json_resp({"ok": False, "error": f"Unknown action: {action}"}, 400)

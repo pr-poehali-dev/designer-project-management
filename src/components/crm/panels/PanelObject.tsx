@@ -85,36 +85,36 @@ export default function PanelObject({
           </Field>
         </div>
 
-        <Field label="Комментарии к объекту">
-          <textarea className={`${inputCls} resize-none`} rows={3}
-            placeholder="Особенности, нюансы, пожелания..."
-            value={project.object_comment || ""}
-            onChange={e => up("object_comment", e.target.value)}
-            onBlur={onSave} />
-        </Field>
-      </div>
+        <div className="grid grid-cols-2 gap-3 items-start">
+          <Field label="Комментарии к объекту">
+            <textarea className={`${inputCls} resize-none`} rows={3}
+              placeholder="Особенности, нюансы, пожелания..."
+              value={project.object_comment || ""}
+              onChange={e => up("object_comment", e.target.value)}
+              onBlur={onSave} />
+          </Field>
 
-      {/* Команда */}
-      <div>
-        <p className="text-xs font-semibold text-ink-muted uppercase tracking-wide mb-3">Сотрудник</p>
-        {team.length > 0 ? (
-          <div className="space-y-2 mb-3">
-            {team.map(m => (
-              <div key={m.id} className="flex items-center gap-3 p-3 bg-snow rounded-xl">
-                <div className="w-8 h-8 rounded-full bg-ink/10 flex items-center justify-center text-xs font-semibold text-ink shrink-0">
-                  {m.member_name[0]?.toUpperCase()}
-                </div>
-                <span className="text-sm font-medium flex-1">{m.member_name}</span>
-                <button onClick={() => onDeleteMember(m.id)} className="text-ink-faint hover:text-red-500 transition-colors">
-                  <Icon name="X" size={14} />
-                </button>
+          {/* Сотрудник */}
+          <div>
+            <label className="block text-xs font-medium text-ink-muted mb-1">Сотрудник</label>
+            {team.length > 0 ? (
+              <div className="space-y-1.5 mb-2">
+                {team.map(m => (
+                  <div key={m.id} className="flex items-center gap-2 p-2 bg-snow rounded-xl">
+                    <div className="w-7 h-7 rounded-full bg-ink/10 flex items-center justify-center text-xs font-semibold text-ink shrink-0">
+                      {m.member_name[0]?.toUpperCase()}
+                    </div>
+                    <span className="text-sm font-medium flex-1 truncate">{m.member_name}</span>
+                    <button onClick={() => onDeleteMember(m.id)} className="text-ink-faint hover:text-red-500 transition-colors shrink-0">
+                      <Icon name="X" size={13} />
+                    </button>
+                  </div>
+                ))}
               </div>
-            ))}
+            ) : null}
+            <AddMemberForm memberOptions={memberOptions} roleOptions={roleOptions} onAdd={onAddMember} />
           </div>
-        ) : (
-          <p className="text-xs text-ink-faint mb-3">Сотрудник не назначен</p>
-        )}
-        <AddMemberForm memberOptions={memberOptions} roleOptions={roleOptions} onAdd={onAddMember} />
+        </div>
       </div>
 
       {/* Фото объекта */}

@@ -56,11 +56,46 @@ def handler(event: dict, context) -> dict:
     try:
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
-        # GET /templates — список шаблонов
+        # GET templates — список шаблонов
         if method == "GET" and action == "templates":
             cur.execute("SELECT id, name FROM doc_templates ORDER BY id")
             templates = [dict(r) for r in cur.fetchall()]
             return json_resp({"ok": True, "templates": templates})
+
+        # GET template — один шаблон с содержимым
+        if method == "GET" and action == "template":
+            tmpl_id = params.get("id")
+            cur.execute("SELECT * FROM doc_templates WHERE id = %s", (tmpl_id,))
+            row = cur.fetchone()
+            if not row:
+                return json_resp({"ok": False, "error": "Not found"}, 404)
+            return json_resp({"ok": True, "template": dict(row)})
+
+        # POST save_template — создать или обновить шаблон
+        if method == "POST" and action == "save_template":
+            tmpl_id = body.get("id")
+            name = body.get("name", "").strip()
+            content = body.get("content", "")
+            if not name:
+                return json_resp({"ok": False, "error": "name required"}, 400)
+            if tmpl_id:
+                cur.execute("UPDATE doc_templates SET name=%s, content=%s, updated_at=NOW() WHERE id=%s RETURNING id", (name, content, tmpl_id))
+                row = cur.fetchone()
+                if not row:
+                    return json_resp({"ok": False, "error": "Not found"}, 404)
+                rid = row["id"]
+            else:
+                cur.execute("INSERT INTO doc_templates (name, content) VALUES (%s, %s) RETURNING id", (name, content))
+                rid = cur.fetchone()["id"]
+            conn.commit()
+            return json_resp({"ok": True, "id": rid})
+
+        # POST delete_template — удалить шаблон
+        if method == "POST" and action == "delete_template":
+            tmpl_id = body.get("id")
+            cur.execute("DELETE FROM doc_templates WHERE id=%s", (tmpl_id,))
+            conn.commit()
+            return json_resp({"ok": True})
 
         # POST /generate — генерация документа
         if method == "POST" and action == "generate":

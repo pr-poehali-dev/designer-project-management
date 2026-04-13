@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import Icon from "@/components/ui/icon";
+import DocTemplatesEditor from "@/components/crm/DocTemplatesEditor";
 
 const API = "https://functions.poehali.dev/1e1d2ff7-8833-4400-a59e-564cb2ac887b";
 
@@ -28,10 +29,10 @@ const DEFAULT_FIELDS: BriefField[] = [
   { key: "extra",         label: "Дополнительно",      placeholder: "Любая другая информация...",       type: "textarea", enabled: true },
 ];
 
-type Tab = "brief";
+type Tab = "brief" | "templates";
 
 export default function ContractsPage() {
-  const [tab] = useState<Tab>("brief");
+  const [tab, setTab] = useState<Tab>("brief");
 
   // Brief template state
   const [fields, setFields] = useState<BriefField[]>(DEFAULT_FIELDS);

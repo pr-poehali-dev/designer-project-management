@@ -268,26 +268,28 @@ export default function EstimateTable({ projectId, estimateId, discountPercent, 
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3 mb-1">
-        <Icon name="Calculator" size={16} className="text-ink-muted" />
-        {onUpdateTitle ? (
-          <input value={estTitle} onChange={e => setEstTitle(e.target.value)}
-            onBlur={() => onUpdateTitle(estTitle)}
-            className="text-sm font-semibold bg-transparent focus:outline-none focus:bg-snow rounded px-1 py-0.5 -ml-1" />
-        ) : (
-          <span className="text-sm font-semibold">{title}</span>
-        )}
+      <div className="flex items-center justify-between gap-3 mb-1">
+        <div className="flex items-center gap-2">
+          <Icon name="Calculator" size={16} className="text-ink-muted" />
+          {onUpdateTitle ? (
+            <input value={estTitle} onChange={e => setEstTitle(e.target.value)}
+              onBlur={() => onUpdateTitle(estTitle)}
+              className="text-sm font-semibold bg-transparent focus:outline-none focus:bg-snow rounded px-1 py-0.5 -ml-1" />
+          ) : (
+            <span className="text-sm font-semibold">{title}</span>
+          )}
+        </div>
         <button onClick={toggleApprove} disabled={approvingEstimate}
-          className={`ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all disabled:opacity-50 ${
+          className={`flex shrink-0 items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold transition-all disabled:opacity-50 ${
             isApproved
-              ? "bg-green-500 text-white hover:bg-green-600"
-              : "border border-snow-dark text-ink-muted hover:text-ink hover:border-ink/30 bg-white"
+              ? "bg-green-500 text-white hover:bg-green-600 shadow-sm"
+              : "bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100"
           }`}>
           {approvingEstimate
             ? <div className="w-3 h-3 border-2 border-current/30 border-t-current rounded-full animate-spin" />
-            : <Icon name={isApproved ? "CheckCircle" : "Circle"} size={13} />
+            : <Icon name={isApproved ? "CheckCircle" : "Send"} size={13} />
           }
-          {isApproved ? "Утверждена" : "Утвердить"}
+          {isApproved ? "Утверждена" : "Утвердить смету"}
         </button>
       </div>
 

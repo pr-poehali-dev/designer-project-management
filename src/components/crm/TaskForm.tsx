@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Icon from "@/components/ui/icon";
-import { API } from "./tasks.types";
+import { API, CRM_API } from "./tasks.types";
 import type { Priority, TaskType, Project } from "./tasks.types";
 
 export function TaskForm({ projects, onClose, onCreated }: {
@@ -19,6 +19,16 @@ export function TaskForm({ projects, onClose, onCreated }: {
     tags: "",
   });
   const [saving, setSaving] = useState(false);
+  const [memberOptions, setMemberOptions] = useState<{ name: string; label: string }[]>([]);
+
+  useEffect(() => {
+    const projectId = form.project_id;
+    if (!projectId) { setMemberOptions([]); return; }
+    fetch(`${CRM_API}?action=members&project_id=${projectId}`)
+      .then(r => r.json())
+      .then(d => { if (d.ok) setMemberOptions(d.members || []); })
+      .catch(() => {});
+  }, [form.project_id]);
 
   const save = async () => {
     if (!form.title.trim()) return;
@@ -127,12 +137,23 @@ export function TaskForm({ projects, onClose, onCreated }: {
 
           <div>
             <label className="block text-xs font-medium text-ink-muted mb-1.5">Исполнитель</label>
-            <input
-              className="w-full border border-snow-dark rounded-xl px-3 py-2 text-sm outline-none focus:border-ink transition-colors"
-              placeholder="Имя исполнителя"
-              value={form.assignee}
-              onChange={e => setForm({ ...form, assignee: e.target.value })}
-            />
+            {memberOptions.length > 0 ? (
+              <select
+                className="w-full border border-snow-dark rounded-xl px-3 py-2 text-sm outline-none focus:border-ink transition-colors bg-white"
+                value={form.assignee}
+                onChange={e => setForm({ ...form, assignee: e.target.value })}
+              >
+                <option value="">— не выбран —</option>
+                {memberOptions.map(m => <option key={m.name} value={m.name}>{m.label}</option>)}
+              </select>
+            ) : (
+              <input
+                className="w-full border border-snow-dark rounded-xl px-3 py-2 text-sm outline-none focus:border-ink transition-colors"
+                placeholder={form.project_id ? "Выберите проект для списка сотрудников" : "Имя исполнителя"}
+                value={form.assignee}
+                onChange={e => setForm({ ...form, assignee: e.target.value })}
+              />
+            )}
           </div>
 
           <div>

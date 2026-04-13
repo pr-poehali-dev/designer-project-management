@@ -23,6 +23,8 @@ export default function ProjectCard({ projectId, onBack }: { projectId: number; 
   const [savedProject, setSavedProject] = useState("");
   const [status, setStatus] = useState<"idle" | "saved" | "error">("idle");
   const [newMember, setNewMember] = useState({ member_name: "", role: "" });
+  const [memberOptions, setMemberOptions] = useState<{ name: string; label: string }[]>([]);
+  const [roleOptions, setRoleOptions] = useState<{ id: string; label: string }[]>([]);
   const [clientLink, setClientLink] = useState("");
   const [copyStatus, setCopyStatus] = useState<"idle" | "copied">("idle");
   const [generatingPdf, setGeneratingPdf] = useState(false);
@@ -60,7 +62,7 @@ export default function ProjectCard({ projectId, onBack }: { projectId: number; 
 
   const load = useCallback(async () => {
     try {
-      const [pr, cl, est, brf, docs, pays, refs] = await Promise.all([
+      const [pr, cl, est, brf, docs, pays, refs, mbr] = await Promise.all([
         fetch(`${API}?action=projects&id=${projectId}`).then(r => r.json()),
         fetch(`${API}?action=clients_short`).then(r => r.json()),
         fetch(`${API}?action=estimates&project_id=${projectId}`).then(r => r.json()),
@@ -68,6 +70,7 @@ export default function ProjectCard({ projectId, onBack }: { projectId: number; 
         fetch(`${API}?action=documents&project_id=${projectId}`).then(r => r.json()),
         fetch(`${API}?action=payments&project_id=${projectId}`).then(r => r.json()),
         fetch(`${API}?action=references&project_id=${projectId}`).then(r => r.json()),
+        fetch(`${API}?action=members&project_id=${projectId}`).then(r => r.json()),
       ]);
       if (pr.ok) { setProject(pr.project); setSavedProject(JSON.stringify(pr.project)); setTeam(pr.team || []); }
       if (cl.ok) setClients(cl.clients || []);
@@ -77,6 +80,7 @@ export default function ProjectCard({ projectId, onBack }: { projectId: number; 
       if (docs.ok) setDocuments(docs.documents || []);
       if (pays.ok) { setPayments(pays.payments || []); setPayTotal(pays.total || 0); setPayPaid(pays.paid || 0); }
       if (refs.ok) setReferences(refs.references || []);
+      if (mbr.ok) { setMemberOptions(mbr.members || []); setRoleOptions(mbr.roles || []); }
     } catch { /* ignore */ } finally { setLoading(false); }
   }, [projectId]);  
 
@@ -359,6 +363,8 @@ export default function ProjectCard({ projectId, onBack }: { projectId: number; 
         setNewMember={setNewMember}
         onAddMember={addMember}
         onDeleteMember={deleteMember}
+        memberOptions={memberOptions}
+        roleOptions={roleOptions}
       />
 
       {/* Tabs */}

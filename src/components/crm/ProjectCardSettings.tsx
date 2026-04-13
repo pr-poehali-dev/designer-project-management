@@ -9,6 +9,9 @@ const OBJECT_TYPES = [
   { id: "commercial", label: "Коммерческое помещение" },
 ];
 
+interface MemberOption { name: string; label: string; }
+interface RoleOption { id: string; label: string; }
+
 interface Props {
   project: ProjectData;
   setProject: (fn: (p: ProjectData | null) => ProjectData | null) => void;
@@ -22,11 +25,14 @@ interface Props {
   setNewMember: (fn: (p: { member_name: string; role: string }) => { member_name: string; role: string }) => void;
   onAddMember: () => void;
   onDeleteMember?: (id: number) => void;
+  memberOptions?: MemberOption[];
+  roleOptions?: RoleOption[];
 }
 
 export default function ProjectCardSettings({
   project, setProject, clients, saving, hasChanges, saveStatus, onSave,
   team, newMember, setNewMember, onAddMember, onDeleteMember,
+  memberOptions = [], roleOptions = [],
 }: Props) {
   return (
     <div className="card-surface rounded-2xl p-5 mb-6 space-y-5">
@@ -85,10 +91,26 @@ export default function ProjectCardSettings({
       <div>
         <label className="text-xs text-ink-muted font-medium mb-2 block">Команда</label>
         <div className="flex gap-2 mb-2">
-          <input value={newMember.member_name} onChange={e => setNewMember(p => ({ ...p, member_name: e.target.value }))}
-            placeholder="Имя сотрудника" className="flex-1 bg-snow border border-snow-dark rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ink/10" />
-          <input value={newMember.role} onChange={e => setNewMember(p => ({ ...p, role: e.target.value }))}
-            placeholder="Роль" className="w-36 bg-snow border border-snow-dark rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ink/10" />
+          {memberOptions.length > 0 ? (
+            <select value={newMember.member_name} onChange={e => setNewMember(p => ({ ...p, member_name: e.target.value }))}
+              className="flex-1 bg-snow border border-snow-dark rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ink/10">
+              <option value="">Выбрать сотрудника...</option>
+              {memberOptions.map(m => <option key={m.name} value={m.name}>{m.label}</option>)}
+            </select>
+          ) : (
+            <input value={newMember.member_name} onChange={e => setNewMember(p => ({ ...p, member_name: e.target.value }))}
+              placeholder="Имя сотрудника" className="flex-1 bg-snow border border-snow-dark rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ink/10" />
+          )}
+          {roleOptions.length > 0 ? (
+            <select value={newMember.role} onChange={e => setNewMember(p => ({ ...p, role: e.target.value }))}
+              className="w-40 bg-snow border border-snow-dark rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ink/10">
+              <option value="">Роль...</option>
+              {roleOptions.map(r => <option key={r.id} value={r.label}>{r.label}</option>)}
+            </select>
+          ) : (
+            <input value={newMember.role} onChange={e => setNewMember(p => ({ ...p, role: e.target.value }))}
+              placeholder="Роль" className="w-36 bg-snow border border-snow-dark rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ink/10" />
+          )}
           <button onClick={onAddMember} disabled={!newMember.member_name.trim()}
             className="px-4 py-2 bg-ink text-white text-sm font-medium rounded-xl hover:bg-ink-light transition-colors disabled:opacity-40">
             <Icon name="Plus" size={15} />

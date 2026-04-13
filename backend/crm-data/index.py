@@ -559,6 +559,72 @@ def handle_project_chat(method, params, body):
         conn.close()
 
 
+def handle_members(method, params, body):
+    """Список участников для выбора в команду: профиль дизайнера, команда проекта, клиент проекта, + доступные роли."""
+    conn = get_db()
+    try:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        project_id = params.get("project_id") or body.get("project_id")
+
+        # Профиль владельца (дизайнер)
+        cur.execute("SELECT full_name, position, specializations FROM user_profile ORDER BY id LIMIT 1")
+        profile = cur.fetchone()
+        members = []
+        available_roles = []
+
+        if profile:
+            name = profile["full_name"] or "Дизайнер"
+            members.append({"name": name, "label": f"{name} (вы)"})
+            specs = profile["specializations"] or []
+            available_roles = list(specs)
+
+        # Команда проекта (уже добавленные — чтобы не дублировать)
+        existing_names = set()
+        if project_id:
+            cur.execute("SELECT member_name FROM project_team WHERE project_id = %s", (project_id,))
+            existing_names = {r["member_name"] for r in cur.fetchall()}
+
+        # Клиент проекта
+        if project_id:
+            cur.execute("""
+                SELECT c.name, c.contact_person FROM projects p
+                LEFT JOIN clients c ON c.id = p.client_id
+                WHERE p.id = %s
+            """, (project_id,))
+            proj = cur.fetchone()
+            if proj:
+                client_name = proj["contact_person"] or proj["name"]
+                if client_name:
+                    members.append({"name": client_name, "label": f"{client_name} (клиент)"})
+
+        # Все роли из user_profile (объединяем уникальные)
+        cur.execute("SELECT DISTINCT unnest(specializations) as spec FROM user_profile WHERE specializations IS NOT NULL")
+        all_specs = [r["spec"] for r in cur.fetchall()]
+        for s in all_specs:
+            if s not in available_roles:
+                available_roles.append(s)
+
+        SPEC_MAP = {
+            "designer": "Дизайнер",
+            "draftsman": "Чертежник",
+            "visualizer": "Визуализатор",
+            "estimator": "Сметчик",
+        }
+        roles = [{"id": s, "label": SPEC_MAP.get(s, s.capitalize())} for s in available_roles]
+        # Дефолтный набор если пусто
+        if not roles:
+            roles = [
+                {"id": "designer", "label": "Дизайнер"},
+                {"id": "draftsman", "label": "Чертежник"},
+                {"id": "visualizer", "label": "Визуализатор"},
+                {"id": "estimator", "label": "Сметчик"},
+            ]
+
+        return json_resp({"ok": True, "members": members, "roles": roles, "existing_names": list(existing_names)})
+    finally:
+        conn.close()
+
+
 def handle_clients_list_short(method, params, body):
     conn = get_db()
     try:
@@ -878,5 +944,7 @@ def handler(event: dict, context) -> dict:
         return handle_documents(method, params, body)
     elif action == "payments":
         return handle_payments(method, params, body)
+    elif action == "members":
+        return handle_members(method, params, body)
 
     return json_resp({"ok": False, "error": f"Unknown action: {action}"}, 400)

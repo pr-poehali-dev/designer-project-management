@@ -294,18 +294,18 @@ def chat_with_gpt(messages: list, system_prompt: str) -> str:
 
 
 def tts_openai(text: str, gender: str = "male") -> str:
-    """Синтез речи через OpenAI TTS. Возвращает base64 mp3."""
-    api_key = os.environ.get("OPENAI_API_KEY", "")
-    # Голоса: onyx/echo/fable — мужские; shimmer/nova/alloy — женские
+    """Синтез речи через Polza TTS (OpenAI-совместимый). Возвращает base64 mp3."""
+    api_key = os.environ.get("POLZA_AI_API_KEY", "")
     voice = "onyx" if gender == "male" else "nova"
     resp = requests.post(
-        "https://api.openai.com/v1/audio/speech",
+        f"{POLZA_BASE}/audio/speech",
         headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-        json={"model": "tts-1", "input": text, "voice": voice, "response_format": "mp3"},
+        json={"model": "openai/tts-1", "input": text, "voice": voice, "response_format": "mp3"},
         timeout=30,
     )
+    print(f"TTS status: {resp.status_code}, size: {len(resp.content)}")
     if resp.status_code != 200:
-        raise Exception(f"TTS error: {resp.status_code} {resp.text[:200]}")
+        raise Exception(f"TTS error: {resp.status_code} {resp.text[:300]}")
     return base64.b64encode(resp.content).decode()
 
 

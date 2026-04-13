@@ -1,0 +1,1 @@
+{"tests": [{"name": "Check email not client", "method": "POST", "path": "/?action=check_email", "body": {"email": "test_nonexistent_xyz@test.com"}, "expectedStatus": 200, "expectedBody": {"ok": true}, "bodyMatcher": "partial"}]}

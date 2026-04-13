@@ -48,6 +48,10 @@ interface Props {
   setClientComment: (v: string) => void;
   savingComment: boolean;
   onSaveComment: () => void;
+  briefValues: Record<string, string>;
+  setBriefValues: (v: Record<string, string>) => void;
+  onSaveBrief: () => void;
+  savingBrief: boolean;
 
   // Референсы
   references: Reference[];
@@ -62,6 +66,7 @@ export default function ClientDashboardTabs({
   messages, input, setInput, sending, onSendMsg, chatBottomRef, sessionName,
   documents, uploadingDoc, onDocUpload, onSignDoc,
   brief, briefTemplate, briefIntro, clientComment, setClientComment, savingComment, onSaveComment,
+  briefValues, setBriefValues, onSaveBrief, savingBrief,
   references, uploadingRef, onRefUpload,
 }: Props) {
   const docInputRef = useRef<HTMLInputElement>(null);
@@ -248,54 +253,52 @@ export default function ClientDashboardTabs({
           {briefTemplate.length > 0 ? (
             <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
               <div className="px-4 py-3 border-b border-gray-100">
-                <p className="text-sm font-semibold text-gray-800">Параметры проекта</p>
-                <p className="text-xs text-gray-400 mt-0.5">Заполнено дизайнером</p>
-              </div>
-              {!brief || briefTemplate.every(f => !brief[f.key])
-                ? <div className="text-center py-10 text-gray-400 text-sm">Дизайнер ещё не заполнил данные</div>
-                : <div className="divide-y divide-gray-50">
-                    {briefTemplate.filter(f => brief && brief[f.key]).map(f => (
-                      <div key={f.key} className="flex gap-3 px-4 py-3">
-                        <p className="text-xs text-gray-400 font-medium w-36 shrink-0 mt-0.5">{f.label}</p>
-                        <p className="text-sm text-gray-800">{String(brief![f.key] ?? "")}</p>
-                      </div>
-                    ))}
-                  </div>
-              }
-            </div>
-          ) : brief ? (
-            <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-              <div className="px-4 py-3 border-b border-gray-100">
-                <p className="text-sm font-semibold text-gray-800">Параметры проекта</p>
+                <p className="text-sm font-semibold text-gray-800">Заполните бриф</p>
+                <p className="text-xs text-gray-400 mt-0.5">Помогите дизайнеру лучше понять ваши пожелания</p>
               </div>
               <div className="divide-y divide-gray-50">
-                {(["style","area","budget","rooms","color_palette","furniture","restrictions","wishes","extra"] as const)
-                  .filter(k => brief[k])
-                  .map(k => (
-                    <div key={k} className="flex gap-3 px-4 py-3">
-                      <p className="text-xs text-gray-400 font-medium w-36 shrink-0 mt-0.5">{k}</p>
-                      <p className="text-sm text-gray-800">{String(brief[k])}</p>
-                    </div>
-                  ))}
+                {briefTemplate.map(f => (
+                  <div key={f.key} className="px-4 py-3">
+                    <label className="text-xs text-gray-500 font-medium block mb-1.5">{f.label}</label>
+                    {f.type === "textarea" ? (
+                      <textarea
+                        value={briefValues[f.key] ?? ""}
+                        onChange={e => setBriefValues({ ...briefValues, [f.key]: e.target.value })}
+                        rows={3}
+                        placeholder={f.placeholder}
+                        className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:border-gray-400 resize-none"
+                      />
+                    ) : (
+                      <input
+                        type={f.type === "number" ? "number" : "text"}
+                        value={briefValues[f.key] ?? ""}
+                        onChange={e => setBriefValues({ ...briefValues, [f.key]: e.target.value })}
+                        placeholder={f.placeholder}
+                        className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:border-gray-400"
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div className="px-4 py-3 border-t border-gray-100">
+                <label className="text-xs text-gray-500 font-medium block mb-1.5">Дополнительные комментарии</label>
+                <textarea value={clientComment} onChange={e => setClientComment(e.target.value)}
+                  rows={3} placeholder="Любые дополнительные пожелания..."
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:border-gray-400 resize-none" />
+              </div>
+              <div className="px-4 pb-4">
+                <button onClick={onSaveBrief} disabled={savingBrief}
+                  className="w-full py-2.5 bg-gray-900 text-white text-sm font-medium rounded-xl hover:bg-gray-800 disabled:opacity-50 flex items-center justify-center gap-2">
+                  {savingBrief && <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                  Сохранить бриф
+                </button>
               </div>
             </div>
           ) : (
             <div className="bg-white rounded-2xl shadow-sm text-center py-12 text-gray-400 text-sm">
-              Бриф ещё не заполнен
+              Дизайнер ещё не подготовил бриф
             </div>
           )}
-          <div className="bg-white rounded-2xl shadow-sm p-4">
-            <p className="text-sm font-semibold text-gray-800 mb-1">Ваши комментарии</p>
-            <p className="text-xs text-gray-400 mb-3">Уточнения и пожелания к параметрам проекта</p>
-            <textarea value={clientComment} onChange={e => setClientComment(e.target.value)}
-              rows={4} placeholder="Напишите дизайнеру ваши уточнения, правки или дополнительные пожелания..."
-              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm placeholder:text-gray-400 focus:outline-none focus:border-gray-400 resize-none" />
-            <button onClick={onSaveComment} disabled={savingComment}
-              className="mt-2 px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-xl hover:bg-gray-800 disabled:opacity-50 flex items-center gap-2">
-              {savingComment && <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
-              Сохранить
-            </button>
-          </div>
         </div>
       )}
 

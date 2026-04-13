@@ -29,6 +29,8 @@ export default function ClientDashboard({ session, projectToken, onLogout }: Pro
   const [sending, setSending] = useState(false);
   const [clientComment, setClientComment] = useState("");
   const [savingComment, setSavingComment] = useState(false);
+  const [briefValues, setBriefValues] = useState<Record<string, string>>({});
+  const [savingBrief, setSavingBrief] = useState(false);
   const [uploadingRef, setUploadingRef] = useState(false);
   const [uploadingDoc, setUploadingDoc] = useState(false);
   const [projectId, setProjectId] = useState<number | null>(null);
@@ -58,7 +60,16 @@ export default function ClientDashboard({ session, projectToken, onLogout }: Pro
       fetch(`${CRM_API}?action=payments&project_id=${pid}`),
       fetch(`${SETTINGS_API}?action=brief_template`),
     ]);
-    if (bR.status === "fulfilled") { const d = await bR.value.json(); if (d.ok && d.brief) { setBrief(d.brief); setClientComment(d.brief.client_comment || ""); } }
+    if (bR.status === "fulfilled") {
+      const d = await bR.value.json();
+      if (d.ok && d.brief) {
+        setBrief(d.brief);
+        setClientComment(d.brief.client_comment || "");
+        const vals: Record<string, string> = {};
+        Object.entries(d.brief).forEach(([k, v]) => { if (k !== "client_comment" && v != null) vals[k] = String(v); });
+        setBriefValues(vals);
+      }
+    }
     if (rfR.status === "fulfilled") { const d = await rfR.value.json(); if (d.ok) setReferences(d.references || []); }
     if (doR.status === "fulfilled") { const d = await doR.value.json(); if (d.ok) setDocuments(d.documents || []); }
     if (paR.status === "fulfilled") { const d = await paR.value.json(); if (d.ok) { setPayments(d.payments || []); setPayTotal(d.total || 0); setPayPaid(d.paid || 0); } }
@@ -100,6 +111,17 @@ export default function ClientDashboard({ session, projectToken, onLogout }: Pro
         body: JSON.stringify({ project_id: projectId, client_comment: clientComment }),
       });
     } catch { /* ignore */ } finally { setSavingComment(false); }
+  };
+
+  const saveBrief = async () => {
+    if (!projectId) return;
+    setSavingBrief(true);
+    try {
+      await fetch(`${CRM_API}?action=brief&project_id=${projectId}`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ project_id: projectId, ...briefValues, client_comment: clientComment }),
+      });
+    } catch { /* ignore */ } finally { setSavingBrief(false); }
   };
 
   const uploadFile = async (file: File, action: string, extraFields: Record<string, string>) => {
@@ -222,6 +244,10 @@ export default function ClientDashboard({ session, projectToken, onLogout }: Pro
             setClientComment={setClientComment}
             savingComment={savingComment}
             onSaveComment={saveComment}
+            briefValues={briefValues}
+            setBriefValues={setBriefValues}
+            onSaveBrief={saveBrief}
+            savingBrief={savingBrief}
             references={references}
             uploadingRef={uploadingRef}
             onRefUpload={handleRefUpload}

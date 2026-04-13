@@ -625,6 +625,7 @@ def handle_client_messages_unread(method, params, body):
 
 
 def handle_brief(method, params, body):
+    import json as _json
     project_id = params.get("project_id") or body.get("project_id")
     conn = get_db()
     try:
@@ -632,25 +633,38 @@ def handle_brief(method, params, body):
         if method == "GET":
             cur.execute("SELECT * FROM project_briefs WHERE project_id = %s", (project_id,))
             row = cur.fetchone()
-            return json_resp({"ok": True, "brief": dict(row) if row else None})
+            if row:
+                brief = dict(row)
+                # Распаковываем custom_data в основной объект
+                custom = brief.pop("custom_data", {}) or {}
+                if isinstance(custom, str):
+                    custom = _json.loads(custom)
+                brief.update(custom)
+                return json_resp({"ok": True, "brief": brief})
+            return json_resp({"ok": True, "brief": None})
         if method in ("POST", "PUT"):
-            fields = ["style", "area", "budget", "rooms", "wishes", "color_palette",
-                      "furniture", "restrictions", "extra", "client_comment"]
+            known = ["style", "area", "budget", "rooms", "wishes", "color_palette",
+                     "furniture", "restrictions", "extra", "client_comment"]
             sets, vals = [], []
-            for f in fields:
-                if f in body:
-                    sets.append(f"{f} = %s")
-                    vals.append(body[f])
+            custom_data = {}
+            for key, val in body.items():
+                if key in ("project_id",):
+                    continue
+                if key in known:
+                    sets.append(f"{key} = %s")
+                    vals.append(val)
+                elif key not in ("id", "updated_at"):
+                    custom_data[key] = val
+            if custom_data:
+                sets.append("custom_data = custom_data || %s::jsonb")
+                vals.append(_json.dumps(custom_data, ensure_ascii=False))
             sets.append("updated_at = NOW()")
             cur.execute("SELECT id FROM project_briefs WHERE project_id = %s", (project_id,))
             if cur.fetchone():
                 vals.append(project_id)
                 cur.execute(f"UPDATE project_briefs SET {', '.join(sets)} WHERE project_id = %s", vals)
             else:
-                cur.execute(
-                    "INSERT INTO project_briefs (project_id) VALUES (%s)",
-                    (project_id,)
-                )
+                cur.execute("INSERT INTO project_briefs (project_id) VALUES (%s)", (project_id,))
                 if sets:
                     vals.append(project_id)
                     cur.execute(f"UPDATE project_briefs SET {', '.join(sets)} WHERE project_id = %s", vals)

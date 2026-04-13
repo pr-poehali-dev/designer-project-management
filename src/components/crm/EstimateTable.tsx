@@ -377,35 +377,6 @@ export default function EstimateTable({ projectId, estimateId, title = "Смет
         saveEditTemplate={saveEditTemplate}
       />
 
-      {/* Скидка и НДС */}
-      <div className="flex flex-wrap items-end gap-4 p-4 bg-snow rounded-xl border border-snow-dark">
-        <div>
-          <label className="text-xs text-ink-muted font-medium mb-1 block">Скидка, %</label>
-          <input type="number" min={0} max={100} value={discountPercent}
-            onChange={e => setDiscountPercent(Number(e.target.value))}
-            onBlur={() => saveDiscountVat(discountPercent, vatMode, vatRate)}
-            className="w-24 bg-white border border-snow-dark rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ink/10" />
-        </div>
-        <div>
-          <label className="text-xs text-ink-muted font-medium mb-1 block">НДС</label>
-          <select value={vatMode} onChange={e => { setVatMode(e.target.value); saveDiscountVat(discountPercent, e.target.value, vatRate); }}
-            className="bg-white border border-snow-dark rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ink/10">
-            <option value="none">Без НДС</option>
-            <option value="included">В т.ч. НДС</option>
-            <option value="added">Сверх суммы</option>
-          </select>
-        </div>
-        {vatMode !== "none" && (
-          <div>
-            <label className="text-xs text-ink-muted font-medium mb-1 block">Ставка НДС, %</label>
-            <input type="number" min={0} max={100} value={vatRate}
-              onChange={e => setVatRate(Number(e.target.value))}
-              onBlur={() => saveDiscountVat(discountPercent, vatMode, vatRate)}
-              className="w-24 bg-white border border-snow-dark rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ink/10" />
-          </div>
-        )}
-      </div>
-
       <EstimateItemsTable
         items={items}
         newName={newName}
@@ -423,6 +394,10 @@ export default function EstimateTable({ projectId, estimateId, title = "Смет
         vatRate={vatRate}
         vatAmt={vatAmt}
         total={total}
+        onDiscountChange={setDiscountPercent}
+        onVatModeChange={setVatMode}
+        onVatRateChange={setVatRate}
+        onDiscountVatBlur={saveDiscountVat}
       />
     </div>
   );

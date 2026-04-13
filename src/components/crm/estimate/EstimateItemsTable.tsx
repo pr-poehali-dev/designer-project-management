@@ -18,6 +18,10 @@ interface EstimateItemsTableProps {
   vatRate: number;
   vatAmt: number;
   total: number;
+  onDiscountChange?: (v: number) => void;
+  onVatModeChange?: (v: string) => void;
+  onVatRateChange?: (v: number) => void;
+  onDiscountVatBlur?: (d: number, m: string, r: number) => void;
 }
 
 export default function EstimateItemsTable({
@@ -37,6 +41,10 @@ export default function EstimateItemsTable({
   vatRate,
   vatAmt,
   total,
+  onDiscountChange,
+  onVatModeChange,
+  onVatRateChange,
+  onDiscountVatBlur,
 }: EstimateItemsTableProps) {
   return (
     <div className="card-surface rounded-2xl overflow-hidden">
@@ -110,6 +118,38 @@ export default function EstimateItemsTable({
           </tr>
         </tbody>
       </table>
+      {/* Скидка и НДС — между позициями и итогами */}
+      {onDiscountChange && (
+        <div className="border-t border-snow-dark px-4 py-3 flex flex-wrap items-end gap-4 bg-snow/50">
+          <div>
+            <label className="text-xs text-ink-muted font-medium mb-1 block">Скидка, %</label>
+            <input type="number" min={0} max={100} value={discountPercent}
+              onChange={e => onDiscountChange(Number(e.target.value))}
+              onBlur={() => onDiscountVatBlur?.(discountPercent, vatMode, vatRate)}
+              className="w-20 bg-white border border-snow-dark rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ink/10" />
+          </div>
+          <div>
+            <label className="text-xs text-ink-muted font-medium mb-1 block">НДС</label>
+            <select value={vatMode}
+              onChange={e => { onVatModeChange?.(e.target.value); onDiscountVatBlur?.(discountPercent, e.target.value, vatRate); }}
+              className="bg-white border border-snow-dark rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ink/10">
+              <option value="none">Без НДС</option>
+              <option value="included">В т.ч. НДС</option>
+              <option value="added">Сверх суммы</option>
+            </select>
+          </div>
+          {vatMode !== "none" && (
+            <div>
+              <label className="text-xs text-ink-muted font-medium mb-1 block">Ставка, %</label>
+              <input type="number" min={0} max={100} value={vatRate}
+                onChange={e => onVatRateChange?.(Number(e.target.value))}
+                onBlur={() => onDiscountVatBlur?.(discountPercent, vatMode, vatRate)}
+                className="w-20 bg-white border border-snow-dark rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ink/10" />
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="border-t border-snow-dark p-5 space-y-2">
         <div className="flex justify-between text-sm">
           <span className="text-ink-muted">Итого:</span>

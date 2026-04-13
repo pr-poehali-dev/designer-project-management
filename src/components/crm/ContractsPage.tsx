@@ -114,6 +114,22 @@ export default function ContractsPage() {
   return (
     <div className="space-y-5 animate-fade-in max-w-3xl">
 
+      {/* Tabs */}
+      <div className="flex gap-1 bg-snow rounded-2xl p-1 w-fit">
+        <button onClick={() => setTab("brief")}
+          className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${tab === "brief" ? "bg-white shadow-sm text-ink" : "text-ink-faint hover:text-ink"}`}>
+          Бриф
+        </button>
+        <button onClick={() => setTab("templates")}
+          className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${tab === "templates" ? "bg-white shadow-sm text-ink" : "text-ink-faint hover:text-ink"}`}>
+          Шаблоны договоров
+        </button>
+      </div>
+
+      {tab === "templates" && <DocTemplatesEditor />}
+
+      {tab === "brief" && <>
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -308,6 +324,8 @@ export default function ContractsPage() {
           </div>
         </>
       )}
+
+      </>}
     </div>
   );
 }

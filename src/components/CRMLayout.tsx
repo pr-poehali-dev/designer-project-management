@@ -12,6 +12,7 @@ import ProfilePage from "@/components/crm/ProfilePage";
 import CompanyPage from "@/components/crm/CompanyPage";
 import GuildPage from "@/components/crm/GuildPage";
 import TasksPage from "@/components/crm/TasksPage";
+import AIAssistant from "@/components/crm/AIAssistant";
 
 interface Props {
   onLogout: () => void;
@@ -206,6 +207,13 @@ export default function CRMLayout({ onLogout }: Props) {
           {renderPage()}
         </div>
       </main>
+
+      <AIAssistant
+        currentPage={active}
+        currentProjectName={undefined}
+        onNavigate={(page) => { setActive(page); setOpenProjectId(null); }}
+        onOpenProject={(id) => { setOpenProjectId(id); setActive("projects"); }}
+      />
     </div>
   );
 }

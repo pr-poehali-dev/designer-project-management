@@ -8,6 +8,7 @@ interface Profile {
   phone: string;
   email: string;
   position: string;
+  assistant_name: string;
 }
 
 const TARIFFS = [
@@ -17,7 +18,7 @@ const TARIFFS = [
 ];
 
 export default function ProfilePage() {
-  const [profile, setProfile] = useState<Profile>({ full_name: "", phone: "", email: "", position: "" });
+  const [profile, setProfile] = useState<Profile>({ full_name: "", phone: "", email: "", position: "", assistant_name: "" });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState<Profile | null>(null);
@@ -33,8 +34,8 @@ export default function ProfilePage() {
       const data = await r.json();
       if (data.ok) {
         const p = data.profile;
-        setProfile({ full_name: p.full_name || "", phone: p.phone || "", email: p.email || "", position: p.position || "" });
-        setSaved({ full_name: p.full_name || "", phone: p.phone || "", email: p.email || "", position: p.position || "" });
+        setProfile({ full_name: p.full_name || "", phone: p.phone || "", email: p.email || "", position: p.position || "", assistant_name: p.assistant_name || "" });
+        setSaved({ full_name: p.full_name || "", phone: p.phone || "", email: p.email || "", position: p.position || "", assistant_name: p.assistant_name || "" });
       }
     } catch { /* ignore */ } finally {
       setLoading(false);
@@ -99,6 +100,18 @@ export default function ProfilePage() {
             onChange={v => setProfile(p => ({ ...p, email: v }))} placeholder="your@email.com" />
           <Field label="Должность" icon="Briefcase" value={profile.position}
             onChange={v => setProfile(p => ({ ...p, position: v }))} placeholder="Директор" />
+          <div className="md:col-span-2">
+            <label className="block text-xs font-medium text-ink-muted mb-1.5 flex items-center gap-1.5">
+              <span className="text-base">✦</span> Имя AI-помощника
+            </label>
+            <input
+              className="w-full border border-snow-dark rounded-xl px-3 py-2.5 text-sm outline-none focus:border-ink transition-colors bg-snow"
+              placeholder="Давинчи"
+              value={profile.assistant_name}
+              onChange={e => setProfile(p => ({ ...p, assistant_name: e.target.value }))}
+            />
+            <p className="text-xs text-ink-faint mt-1">Так будет звать себя ваш голосовой помощник</p>
+          </div>
         </div>
 
         <div className="flex items-center justify-between mt-6 pt-6 border-t border-snow-dark">

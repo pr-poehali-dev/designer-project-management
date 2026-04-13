@@ -41,6 +41,7 @@ export interface InternalChat {
   name: string;
   role: string;
   initials: string;
+  avatar_url?: string;
   lastMsg: string;
   messages: { from: string; text: string; time: string }[];
 }

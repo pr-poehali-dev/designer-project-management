@@ -41,6 +41,7 @@ export default function CRMLayout({ onLogout }: Props) {
   const [userName, setUserName] = useState("");
   const [userPosition, setUserPosition] = useState("");
   const [openProjectId, setOpenProjectId] = useState<number | null>(null);
+  const [openChatWith, setOpenChatWith] = useState<{ name: string; initials: string; avatar_url?: string } | null>(null);
 
   const loadProfile = useCallback(async () => {
     try {
@@ -65,10 +66,20 @@ export default function CRMLayout({ onLogout }: Props) {
       case "finance": return <FinancePage />;
       case "contracts": return <ContractsPage />;
       case "marketing": return <MarketingPage />;
-      case "chats": return <ChatsPage />;
+      case "chats": return <ChatsPage openChatWith={openChatWith} onChatOpened={() => setOpenChatWith(null)} />;
       case "profile": return <ProfilePage />;
       case "company": return <CompanyPage />;
-      case "guild": return <GuildPage onHire={(member) => { setActive("team"); }} />;
+      case "guild": return (
+        <GuildPage
+          onChat={(member) => {
+            const inits = member.full_name
+              ? member.full_name.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase()
+              : "?";
+            setOpenChatWith({ name: member.full_name, initials: inits, avatar_url: member.avatar_url });
+            setActive("chats");
+          }}
+        />
+      );
       default: return <DashboardPage />;
     }
   };

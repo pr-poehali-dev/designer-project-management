@@ -9,7 +9,12 @@ import AvitoMessagePanel from "./AvitoMessagePanel";
 import InternalMessagePanel from "./InternalMessagePanel";
 import AutopilotTraining from "./AutopilotTraining";
 
-export default function ChatsPage() {
+interface Props {
+  openChatWith?: { name: string; initials: string; avatar_url?: string } | null;
+  onChatOpened?: () => void;
+}
+
+export default function ChatsPage({ openChatWith, onChatOpened }: Props) {
   const [tab, setTab] = useState<"avito" | "internal" | "training">("avito");
 
   // Avito state
@@ -30,7 +35,30 @@ export default function ChatsPage() {
   const [autopilotRunning, setAutopilotRunning] = useState(false);
 
   // Internal state
+  const [internalChats, setInternalChats] = useState(INTERNAL_CHATS);
   const [activeInternal, setActiveInternal] = useState(INTERNAL_CHATS[0]);
+
+  useEffect(() => {
+    if (!openChatWith) return;
+    const existing = internalChats.find(c => c.name === openChatWith.name);
+    if (existing) {
+      setActiveInternal(existing);
+    } else {
+      const newChat = {
+        id: `guild-${Date.now()}`,
+        name: openChatWith.name,
+        role: "",
+        initials: openChatWith.initials,
+        avatar_url: openChatWith.avatar_url,
+        lastMsg: "",
+        messages: [],
+      };
+      setInternalChats(prev => [newChat, ...prev]);
+      setActiveInternal(newChat);
+    }
+    setTab("internal");
+    onChatOpened?.();
+  }, [openChatWith]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const autopilotRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -184,7 +212,7 @@ export default function ChatsPage() {
           setActiveChat={setActiveChat}
           lastRefresh={lastRefresh}
           loadChats={() => loadChats()}
-          internalChats={INTERNAL_CHATS}
+          internalChats={internalChats}
           activeInternal={activeInternal}
           setActiveInternal={setActiveInternal}
         />

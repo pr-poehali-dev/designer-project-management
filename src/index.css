@@ -234,6 +234,14 @@ body {
   border-radius: 999px;
 }
 
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
 @keyframes slide-panel {
   from {
     transform: translateX(100%);

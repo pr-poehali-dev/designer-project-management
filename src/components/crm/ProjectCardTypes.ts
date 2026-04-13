@@ -2,6 +2,7 @@ export interface ProjectData {
   id: number; name: string; client_id: number | null; client_name: string;
   status: string; deadline: string; discount_percent: number;
   vat_mode: string; vat_rate: number;
+  object_address: string; object_type: string; object_area: string; project_duration: string;
 }
 export interface Estimate {
   id: number; name: string; discount_percent: number; vat_mode: string; vat_rate: number;

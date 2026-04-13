@@ -135,7 +135,7 @@ def handle_projects(method, params, body):
             return json_resp({"ok": True, "id": cur.fetchone()["id"]})
 
         if method in ("POST", "PUT") and project_id:
-            fields = ["name", "client_id", "status", "deadline", "discount_percent", "vat_mode", "vat_rate", "main_estimate_approved"]
+            fields = ["name", "client_id", "status", "deadline", "discount_percent", "vat_mode", "vat_rate", "main_estimate_approved", "object_address", "object_type", "object_area", "project_duration"]
             sets, vals = [], []
             for f in fields:
                 if f in body:

@@ -115,6 +115,13 @@ export default function ProjectCard({ projectId, onBack }: { projectId: number; 
     } catch { /* ignore */ }
   };
 
+  const deleteMember = async (id: number) => {
+    try {
+      await fetch(`${API}?action=team&id=${id}`, { method: "DELETE" });
+      setTeam(prev => prev.filter(m => m.id !== id));
+    } catch { /* ignore */ }
+  };
+
   const generatePdf = async () => {
     setGeneratingPdf(true); setPdfUrl("");
     try {
@@ -316,6 +323,11 @@ export default function ProjectCard({ projectId, onBack }: { projectId: number; 
         hasChanges={hasProjectChanges}
         saveStatus={status}
         onSave={saveProject}
+        team={team}
+        newMember={newMember}
+        setNewMember={setNewMember}
+        onAddMember={addMember}
+        onDeleteMember={deleteMember}
       />
 
       {/* Tabs */}

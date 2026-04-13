@@ -273,20 +273,23 @@ def build_system_prompt(assistant_name: str, user_name: str, app_context: dict, 
 
 def chat_with_gpt(messages: list, system_prompt: str) -> str:
     api_key = os.environ.get("POLZA_AI_API_KEY", "")
+    recent = messages[-6:] if len(messages) > 6 else messages
     payload = {
-        "model": "openai/gpt-4o",
-        "messages": [{"role": "system", "content": system_prompt}] + messages,
-        "max_tokens": 600,
-        "temperature": 0.5,
+        "model": "openai/gpt-4o-mini",
+        "messages": [{"role": "system", "content": system_prompt}] + recent,
+        "max_tokens": 250,
+        "temperature": 0.4,
         "response_format": {"type": "json_object"},
     }
     resp = requests.post(
         f"{POLZA_BASE}/chat/completions",
         headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
         json=payload,
-        timeout=30,
+        timeout=25,
     )
     data = resp.json()
+    if "choices" not in data:
+        raise Exception(f"GPT error: {data.get('error', data)}")
     return data["choices"][0]["message"]["content"].strip()
 
 

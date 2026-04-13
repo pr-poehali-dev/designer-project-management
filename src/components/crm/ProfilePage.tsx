@@ -119,30 +119,73 @@ export default function ProfilePage() {
 
         {/* Тема оформления */}
         <div className="mt-6 pt-6 border-t border-snow-dark">
-          <label className="block text-xs font-medium text-ink-muted mb-3 flex items-center gap-1.5">
+          <label className="block text-xs font-medium text-ink-muted mb-4 flex items-center gap-1.5">
             <Icon name="Palette" size={14} /> Тема оформления
           </label>
-          <div className="grid grid-cols-4 md:grid-cols-7 gap-2">
-            {THEMES.map(t => (
-              <button
-                key={t.id}
-                onClick={() => setTheme(t.id)}
-                className={`group flex flex-col items-center gap-1.5 p-2 rounded-xl border-2 transition-all ${
-                  theme === t.id ? "border-current shadow-sm scale-105" : "border-transparent hover:border-snow-dark"
-                }`}
-                style={{ borderColor: theme === t.id ? t.accent : undefined }}
-                title={t.label}
-              >
-                <div className="w-10 h-10 rounded-xl overflow-hidden flex shrink-0 shadow-sm border border-snow-dark">
-                  <div className="flex-1" style={{ background: t.bg }} />
-                  <div className="w-3" style={{ background: t.accent }} />
-                </div>
-                <span className="text-[10px] font-medium text-ink-muted leading-none">{t.label}</span>
-                {theme === t.id && <Icon name="Check" size={10} className="text-green-500" />}
-              </button>
-            ))}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {THEMES.map(t => {
+              const active = theme === t.id;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => setTheme(t.id)}
+                  className={`relative rounded-2xl overflow-hidden transition-all duration-200 text-left ${
+                    active ? "ring-2 shadow-lg scale-[1.02]" : "hover:scale-[1.01] hover:shadow-md"
+                  }`}
+                  style={{ ringColor: t.accent } as React.CSSProperties}
+                >
+                  {/* Превью интерфейса */}
+                  <div className="h-24 relative overflow-hidden" style={{ background: t.bg }}>
+                    {/* Мини-сайдбар */}
+                    <div className="absolute left-0 top-0 bottom-0 w-8 flex flex-col gap-1 p-1 pt-2" style={{ background: t.sidebar }}>
+                      <div className="h-1.5 rounded-full mx-0.5" style={{ background: t.accent, opacity: 0.9 }} />
+                      <div className="h-1 rounded-full mx-0.5" style={{ background: t.textMuted, opacity: 0.3 }} />
+                      <div className="h-1 rounded-full mx-0.5" style={{ background: t.textMuted, opacity: 0.3 }} />
+                      <div className="h-1 rounded-full mx-0.5" style={{ background: t.textMuted, opacity: 0.3 }} />
+                    </div>
+                    {/* Мини-контент */}
+                    <div className="absolute left-9 right-1 top-2 space-y-1.5">
+                      <div className="h-2 rounded" style={{ background: t.text, opacity: 0.15, width: "50%" }} />
+                      {/* Карточки */}
+                      <div className="grid grid-cols-2 gap-1">
+                        {[1,2,3,4].map(i => (
+                          <div key={i} className="rounded p-1 space-y-0.5" style={{ background: t.card, border: `1px solid ${t.textMuted}22` }}>
+                            <div className="h-1 rounded" style={{ background: t.text, opacity: 0.12, width: "70%" }} />
+                            <div className="h-1 rounded" style={{ background: t.textMuted, opacity: 0.2, width: "45%" }} />
+                          </div>
+                        ))}
+                      </div>
+                      {/* Кнопка */}
+                      <div className="h-3 rounded-full w-12" style={{ background: t.accent, opacity: 0.9 }} />
+                    </div>
+                  </div>
+
+                  {/* Подпись */}
+                  <div className="px-3 py-2 flex items-center justify-between" style={{ background: t.sidebar }}>
+                    <div>
+                      <p className="text-xs font-semibold leading-none" style={{ color: t.text }}>{t.label}</p>
+                      <div className="flex gap-1 mt-1.5">
+                        {[t.accent, t.bg, t.sidebar].map((c, i) => (
+                          <div key={i} className="w-3 h-3 rounded-full border" style={{ background: c, borderColor: `${t.textMuted}40` }} />
+                        ))}
+                      </div>
+                    </div>
+                    {active && (
+                      <div className="w-5 h-5 rounded-full flex items-center justify-center" style={{ background: t.accent }}>
+                        <Icon name="Check" size={11} style={{ color: t.dark ? t.bg : "#fff" }} />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Рамка активной темы */}
+                  {active && (
+                    <div className="absolute inset-0 rounded-2xl pointer-events-none" style={{ boxShadow: `inset 0 0 0 2px ${t.accent}` }} />
+                  )}
+                </button>
+              );
+            })}
           </div>
-          <p className="text-xs text-ink-faint mt-2">Изменения применяются сразу, сохраняются при нажатии «Сохранить»</p>
+          <p className="text-xs text-ink-faint mt-3">Изменения применяются сразу, сохраняются при нажатии «Сохранить»</p>
         </div>
 
         <div className="flex items-center justify-between mt-6 pt-6 border-t border-snow-dark">

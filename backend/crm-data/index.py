@@ -351,7 +351,7 @@ def handle_client_view(method, params, body):
         if proj_flags and proj_flags["main_estimate_approved"]:
             cur.execute("""
                 SELECT id, name, quantity, unit, price, sort_order
-                FROM work_items WHERE project_id = %s AND estimate_id IS NULL ORDER BY sort_order, id
+                FROM work_items WHERE project_id = %s AND estimate_id IS NULL AND sort_order >= 0 ORDER BY sort_order, id
             """, (project_id,))
             items = [dict(r) for r in cur.fetchall()]
         else:
@@ -365,7 +365,7 @@ def handle_client_view(method, params, body):
         estimates_raw = [dict(r) for r in cur.fetchall()]
         estimates = []
         for est in estimates_raw:
-            cur.execute("SELECT id, name, quantity, unit, price FROM work_items WHERE estimate_id = %s ORDER BY sort_order, id", (est["id"],))
+            cur.execute("SELECT id, name, quantity, unit, price FROM work_items WHERE estimate_id = %s AND sort_order >= 0 ORDER BY sort_order, id", (est["id"],))
             est["items"] = [dict(r) for r in cur.fetchall()]
             estimates.append(est)
 

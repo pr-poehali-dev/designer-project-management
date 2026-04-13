@@ -38,24 +38,49 @@ export default function ChatsPage({ openChatWith, onChatOpened }: Props) {
   const [internalChats, setInternalChats] = useState(INTERNAL_CHATS);
   const [activeInternal, setActiveInternal] = useState(INTERNAL_CHATS[0]);
 
+  const SETTINGS_API = "https://functions.poehali.dev/1e1d2ff7-8833-4400-a59e-564cb2ac887b";
+
+  const loadInternalChats = useCallback(async () => {
+    try {
+      const r = await fetch(`${SETTINGS_API}?action=internal_chats`);
+      const data = await r.json();
+      if (data.ok && data.chats.length > 0) {
+        const dbChats = data.chats.map((c: { id: number; participant_name: string; participant_initials: string; participant_avatar: string }) => ({
+          id: `db-${c.id}`,
+          name: c.participant_name,
+          role: "",
+          initials: c.participant_initials,
+          avatar_url: c.participant_avatar || undefined,
+          lastMsg: "",
+          messages: [],
+        }));
+        setInternalChats(dbChats);
+        setActiveInternal(dbChats[0]);
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => {
+    loadInternalChats();
+  }, [loadInternalChats]);
+
   useEffect(() => {
     if (!openChatWith) return;
-    const existing = internalChats.find(c => c.name === openChatWith.name);
-    if (existing) {
-      setActiveInternal(existing);
-    } else {
-      const newChat = {
-        id: `guild-${Date.now()}`,
-        name: openChatWith.name,
-        role: "",
-        initials: openChatWith.initials,
-        avatar_url: openChatWith.avatar_url,
-        lastMsg: "",
-        messages: [],
-      };
-      setInternalChats(prev => [newChat, ...prev]);
-      setActiveInternal(newChat);
-    }
+    const newChat = {
+      id: `guild-${Date.now()}`,
+      name: openChatWith.name,
+      role: "",
+      initials: openChatWith.initials,
+      avatar_url: openChatWith.avatar_url,
+      lastMsg: "",
+      messages: [],
+    };
+    setInternalChats(prev => {
+      const exists = prev.find(c => c.name === openChatWith.name);
+      if (exists) return prev;
+      return [newChat, ...prev];
+    });
+    setActiveInternal(prev => prev.name === openChatWith.name ? prev : newChat);
     setTab("internal");
     onChatOpened?.();
   }, [openChatWith]); // eslint-disable-line react-hooks/exhaustive-deps

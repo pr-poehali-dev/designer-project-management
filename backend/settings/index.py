@@ -314,6 +314,85 @@ def handler(event: dict, context) -> dict:
             "body": json.dumps({"ok": True, "members": members}, default=str)
         }
 
+    if action == "internal_chats" and method == "GET":
+        conn = get_db()
+        try:
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            cur.execute("SELECT * FROM internal_chats ORDER BY updated_at DESC")
+            chats = [dict(r) for r in cur.fetchall()]
+            return {
+                "statusCode": 200, "headers": CORS_HEADERS,
+                "body": json.dumps({"ok": True, "chats": chats}, default=str)
+            }
+        finally:
+            conn.close()
+
+    if action == "internal_chat_get_or_create" and method == "POST":
+        body = json.loads(event.get("body") or "{}")
+        name = body.get("participant_name", "")
+        initials = body.get("participant_initials", "")
+        avatar = body.get("participant_avatar", "")
+        conn = get_db()
+        try:
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            cur.execute("SELECT * FROM internal_chats WHERE participant_name = %s LIMIT 1", (name,))
+            row = cur.fetchone()
+            if row:
+                chat = dict(row)
+            else:
+                cur.execute(
+                    "INSERT INTO internal_chats (participant_name, participant_initials, participant_avatar) VALUES (%s, %s, %s) RETURNING *",
+                    (name, initials, avatar)
+                )
+                chat = dict(cur.fetchone())
+                conn.commit()
+            return {
+                "statusCode": 200, "headers": CORS_HEADERS,
+                "body": json.dumps({"ok": True, "chat": chat}, default=str)
+            }
+        finally:
+            conn.close()
+
+    if action == "internal_messages" and method == "GET":
+        chat_id = params.get("chat_id")
+        if not chat_id:
+            return {"statusCode": 400, "headers": CORS_HEADERS, "body": json.dumps({"ok": False, "error": "chat_id required"})}
+        conn = get_db()
+        try:
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            cur.execute("SELECT * FROM internal_messages WHERE chat_id = %s ORDER BY created_at ASC", (chat_id,))
+            messages = [dict(r) for r in cur.fetchall()]
+            return {
+                "statusCode": 200, "headers": CORS_HEADERS,
+                "body": json.dumps({"ok": True, "messages": messages}, default=str)
+            }
+        finally:
+            conn.close()
+
+    if action == "internal_message_send" and method == "POST":
+        body = json.loads(event.get("body") or "{}")
+        chat_id = body.get("chat_id")
+        text = body.get("text", "").strip()
+        from_me = body.get("from_me", True)
+        if not chat_id or not text:
+            return {"statusCode": 400, "headers": CORS_HEADERS, "body": json.dumps({"ok": False, "error": "chat_id and text required"})}
+        conn = get_db()
+        try:
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            cur.execute(
+                "INSERT INTO internal_messages (chat_id, from_me, text) VALUES (%s, %s, %s) RETURNING *",
+                (chat_id, from_me, text)
+            )
+            msg = dict(cur.fetchone())
+            cur.execute("UPDATE internal_chats SET updated_at = NOW() WHERE id = %s", (chat_id,))
+            conn.commit()
+            return {
+                "statusCode": 200, "headers": CORS_HEADERS,
+                "body": json.dumps({"ok": True, "message": msg}, default=str)
+            }
+        finally:
+            conn.close()
+
     return {
         "statusCode": 400, "headers": CORS_HEADERS,
         "body": json.dumps({"ok": False, "error": f"Unknown action: {action}"})

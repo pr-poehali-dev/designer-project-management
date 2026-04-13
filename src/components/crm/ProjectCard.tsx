@@ -205,19 +205,37 @@ export default function ProjectCard({ projectId, onBack }: { projectId: number; 
     } catch { /* ignore */ } finally { setGeneratingPdf(false); }
   };
 
+  const sendMessageToChat = async (text: string) => {
+    const chatR = await fetch(`${API}?action=project_chat&project_id=${projectId}`);
+    const chatData = await chatR.json();
+    if (!chatData.ok) throw new Error("chat error");
+    const r = await fetch(`${API}?action=project_chat&sub=message`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatData.chat.id, text, author_name: "Менеджер", author_role: "manager" }),
+    });
+    const data = await r.json();
+    if (!data.ok) throw new Error("send error");
+  };
+
   const sendToProjectChat = async () => {
     if (!pdfUrl) return;
     setSending(true); setSendStatus("idle");
     try {
-      const chatR = await fetch(`${API}?action=project_chat&project_id=${projectId}`);
-      const chatData = await chatR.json();
-      if (!chatData.ok) { setSendStatus("error"); return; }
-      const r = await fetch(`${API}?action=project_chat&sub=message`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chat_id: chatData.chat.id, text: `Коммерческое предложение:\n${pdfUrl}`, author_name: "Система", author_role: "manager" }),
-      });
-      setSendStatus((await r.json()).ok ? "ok" : "error");
+      await sendMessageToChat(`Коммерческое предложение:\n${pdfUrl}`);
+      setSendStatus("ok");
     } catch { setSendStatus("error"); } finally { setSending(false); }
+  };
+
+  const getClientLinkAndReturn = async (): Promise<string> => {
+    if (clientLink) return clientLink;
+    const r = await fetch(`${API}?action=client_token&project_id=${projectId}`);
+    const data = await r.json();
+    if (data.ok) {
+      const link = `${window.location.origin}/client/${data.token}`;
+      setClientLink(link);
+      return link;
+    }
+    return "";
   };
 
   if (loading) return (
@@ -439,6 +457,9 @@ export default function ProjectCard({ projectId, onBack }: { projectId: number; 
           briefSaved={briefSaved}
           briefLoaded={briefLoaded}
           setBrief={setBrief}
+          clientLink={clientLink}
+          onGetClientLink={getClientLinkAndReturn}
+          onSendToChat={sendMessageToChat}
           onSave={async () => {
             await fetch(`${API}?action=brief&project_id=${projectId}`, {
               method: "POST", headers: { "Content-Type": "application/json" },

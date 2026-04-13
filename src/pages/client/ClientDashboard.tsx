@@ -119,8 +119,14 @@ export default function ClientDashboard({ session, projectToken, onLogout }: Pro
     try {
       await fetch(`${CRM_API}?action=brief&project_id=${projectId}`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ project_id: projectId, ...briefValues, client_comment: clientComment }),
+        body: JSON.stringify({ project_id: projectId, ...briefValues, client_comment: clientComment, status: "filled" }),
       });
+      if (chatId) {
+        await fetch(`${CRM_API}?action=project_chat&sub=message`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chat_id: chatId, text: `${session.name} заполнил бриф. Проверьте раздел «Бриф» в проекте.`, author_name: session.name, author_role: "client" }),
+        });
+      }
     } catch { /* ignore */ } finally { setSavingBrief(false); }
   };
 

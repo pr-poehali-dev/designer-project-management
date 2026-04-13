@@ -100,7 +100,9 @@ def handle_projects(method, params, body):
                 p = dict(r)
                 cur2 = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
                 cur2.execute("SELECT COALESCE(SUM(quantity * price), 0) as total FROM work_items WHERE project_id = %s AND sort_order >= 0", (p["id"],))
-                p["total"] = float(cur2.fetchone()["total"])
+                subtotal = float(cur2.fetchone()["total"])
+                disc_pct = float(p.get("discount_percent") or 0)
+                p["total"] = subtotal * (1 - disc_pct / 100)
                 cur2.execute("SELECT member_name, role FROM project_team WHERE project_id = %s", (p["id"],))
                 p["team"] = [dict(t) for t in cur2.fetchall()]
                 projects.append(p)

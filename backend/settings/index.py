@@ -393,6 +393,45 @@ def handler(event: dict, context) -> dict:
         finally:
             conn.close()
 
+    if action == "brief_template" and method == "GET":
+        conn = get_db()
+        try:
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            cur.execute("SELECT * FROM brief_template ORDER BY id LIMIT 1")
+            row = cur.fetchone()
+            return {
+                "statusCode": 200, "headers": CORS_HEADERS,
+                "body": json.dumps({"ok": True, "template": dict(row) if row else None}, default=str)
+            }
+        finally:
+            conn.close()
+
+    if action == "brief_template" and method in ("POST", "PUT"):
+        body = json.loads(event.get("body") or "{}")
+        fields = body.get("fields", [])
+        intro = body.get("intro", "")
+        conn = get_db()
+        try:
+            cur = conn.cursor()
+            cur.execute("SELECT id FROM brief_template LIMIT 1")
+            if cur.fetchone():
+                cur.execute(
+                    "UPDATE brief_template SET fields = %s, intro = %s, updated_at = NOW() WHERE id = (SELECT id FROM brief_template LIMIT 1)",
+                    (json.dumps(fields, ensure_ascii=False), intro)
+                )
+            else:
+                cur.execute(
+                    "INSERT INTO brief_template (fields, intro) VALUES (%s, %s)",
+                    (json.dumps(fields, ensure_ascii=False), intro)
+                )
+            conn.commit()
+            return {
+                "statusCode": 200, "headers": CORS_HEADERS,
+                "body": json.dumps({"ok": True})
+            }
+        finally:
+            conn.close()
+
     return {
         "statusCode": 400, "headers": CORS_HEADERS,
         "body": json.dumps({"ok": False, "error": f"Unknown action: {action}"})

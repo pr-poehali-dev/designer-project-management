@@ -26,18 +26,22 @@ def get_db():
     return psycopg2.connect(os.environ["DATABASE_URL"])
 
 
-def get_profile() -> tuple:
+def get_profile() -> dict:
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute("SELECT assistant_name, full_name FROM user_profile ORDER BY id LIMIT 1")
+        cur.execute("SELECT assistant_name, full_name, assistant_gender FROM user_profile ORDER BY id LIMIT 1")
         row = cur.fetchone()
         conn.close()
         if row:
-            return (row["assistant_name"] or "Давинчи"), (row["full_name"] or "пользователь")
+            return {
+                "assistant_name": row["assistant_name"] or "Жарвис",
+                "user_name": (row["full_name"] or "").split()[0] or "друг",
+                "gender": row["assistant_gender"] or "male",
+            }
     except Exception:
         pass
-    return "Давинчи", "пользователь"
+    return {"assistant_name": "Жарвис", "user_name": "друг", "gender": "male"}
 
 
 def get_crm_context() -> dict:
@@ -286,8 +290,24 @@ def chat_with_gpt(messages: list, system_prompt: str) -> str:
     return data["choices"][0]["message"]["content"].strip()
 
 
+def tts_openai(text: str, gender: str = "male") -> str:
+    """Синтез речи через OpenAI TTS. Возвращает base64 mp3."""
+    api_key = os.environ.get("OPENAI_API_KEY", "")
+    # Голоса: onyx/echo/fable — мужские; shimmer/nova/alloy — женские
+    voice = "onyx" if gender == "male" else "nova"
+    resp = requests.post(
+        "https://api.openai.com/v1/audio/speech",
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        json={"model": "tts-1", "input": text, "voice": voice, "response_format": "mp3"},
+        timeout=30,
+    )
+    if resp.status_code != 200:
+        raise Exception(f"TTS error: {resp.status_code} {resp.text[:200]}")
+    return base64.b64encode(resp.content).decode()
+
+
 def handler(event: dict, context) -> dict:
-    """AI-ассистент Давинчи: transcribe, chat, context."""
+    """AI-ассистент: transcribe, chat, tts, info."""
     if event.get("httpMethod") == "OPTIONS":
         return {"statusCode": 200, "headers": CORS_HEADERS, "body": ""}
 
@@ -295,10 +315,13 @@ def handler(event: dict, context) -> dict:
     params = event.get("queryStringParameters") or {}
     action = params.get("action", "")
 
-    assistant_name, user_name = get_profile()
+    profile = get_profile()
+    assistant_name = profile["assistant_name"]
+    user_name = profile["user_name"]
+    gender = profile["gender"]
 
     if action == "info" and method == "GET":
-        return json_resp({"ok": True, "assistant_name": assistant_name, "user_name": user_name})
+        return json_resp({"ok": True, "assistant_name": assistant_name, "user_name": user_name, "gender": gender})
 
     if action == "transcribe" and method == "POST":
         body = json.loads(event.get("body") or "{}")
@@ -309,10 +332,19 @@ def handler(event: dict, context) -> dict:
         text = transcribe_audio(audio_b64, mime)
         return json_resp({"ok": True, "text": text})
 
+    if action == "tts" and method == "POST":
+        body = json.loads(event.get("body") or "{}")
+        text = body.get("text", "").strip()
+        if not text:
+            return json_resp({"ok": False, "error": "text required"}, 400)
+        audio_b64 = tts_openai(text, gender)
+        return json_resp({"ok": True, "audio": audio_b64, "mime": "audio/mpeg"})
+
     if action == "chat" and method == "POST":
         body = json.loads(event.get("body") or "{}")
         messages = body.get("messages", [])
         app_context = body.get("context", {})
+        with_voice = body.get("with_voice", False)
         if not messages:
             return json_resp({"ok": False, "error": "messages required"}, 400)
 
@@ -324,14 +356,19 @@ def handler(event: dict, context) -> dict:
         try:
             parsed = json.loads(raw_reply)
         except Exception:
-            return json_resp({"ok": True, "reply": raw_reply, "action": None, "assistant_name": assistant_name})
+            reply_text = raw_reply
+            audio_b64 = None
+            if with_voice:
+                try:
+                    audio_b64 = tts_openai(reply_text, gender)
+                except Exception:
+                    audio_b64 = None
+            return json_resp({"ok": True, "reply": reply_text, "action": None, "assistant_name": assistant_name, "audio": audio_b64})
 
         act = parsed.get("action")
         reply_text = parsed.get("text", "")
 
-        # Действия которые выполняются на сервере
         server_actions = {"create_task", "create_client", "create_project", "add_note", "update_task_status"}
-        # Действия которые выполняются на клиенте
         client_actions = {"navigate", "open_project"}
 
         executed_result = None
@@ -350,20 +387,18 @@ def handler(event: dict, context) -> dict:
                 reply_text = action_labels.get(act, lambda _: "Готово!")(executed_result)
             else:
                 reply_text = f"Не удалось выполнить действие: {executed_result.get('error', 'ошибка')}"
-
         elif act in client_actions:
             client_action = parsed
-            action_labels = {
-                "navigate": f"Открываю раздел...",
-                "open_project": f"Открываю проект...",
-            }
-            reply_text = action_labels.get(act, "Выполняю...")
-
-        elif act == "reply":
-            reply_text = parsed.get("text", raw_reply)
-
+            reply_text = {"navigate": "Открываю раздел...", "open_project": "Открываю проект..."}.get(act, "Выполняю...")
         else:
             reply_text = parsed.get("text", raw_reply)
+
+        audio_b64 = None
+        if with_voice and reply_text:
+            try:
+                audio_b64 = tts_openai(reply_text, gender)
+            except Exception:
+                audio_b64 = None
 
         return json_resp({
             "ok": True,
@@ -371,6 +406,7 @@ def handler(event: dict, context) -> dict:
             "action": client_action,
             "executed": executed_result,
             "assistant_name": assistant_name,
+            "audio": audio_b64,
         })
 
     return json_resp({"ok": False, "error": f"Unknown action: {action}"}, 400)

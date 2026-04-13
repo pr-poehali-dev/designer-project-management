@@ -1,0 +1,1 @@
+ALTER TABLE user_profile ADD COLUMN IF NOT EXISTS assistant_gender VARCHAR(10) DEFAULT 'male';

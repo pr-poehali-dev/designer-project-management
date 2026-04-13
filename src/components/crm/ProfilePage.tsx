@@ -10,6 +10,7 @@ interface Profile {
   email: string;
   position: string;
   assistant_name: string;
+  assistant_gender: string;
 }
 
 const TARIFFS = [
@@ -20,7 +21,7 @@ const TARIFFS = [
 
 export default function ProfilePage() {
   const { theme, setTheme } = useTheme();
-  const [profile, setProfile] = useState<Profile>({ full_name: "", phone: "", email: "", position: "", assistant_name: "" });
+  const [profile, setProfile] = useState<Profile>({ full_name: "", phone: "", email: "", position: "", assistant_name: "", assistant_gender: "male" });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState<Profile | null>(null);
@@ -36,8 +37,8 @@ export default function ProfilePage() {
       const data = await r.json();
       if (data.ok) {
         const p = data.profile;
-        setProfile({ full_name: p.full_name || "", phone: p.phone || "", email: p.email || "", position: p.position || "", assistant_name: p.assistant_name || "" });
-        setSaved({ full_name: p.full_name || "", phone: p.phone || "", email: p.email || "", position: p.position || "", assistant_name: p.assistant_name || "" });
+        setProfile({ full_name: p.full_name || "", phone: p.phone || "", email: p.email || "", position: p.position || "", assistant_name: p.assistant_name || "", assistant_gender: p.assistant_gender || "male" });
+        setSaved({ full_name: p.full_name || "", phone: p.phone || "", email: p.email || "", position: p.position || "", assistant_name: p.assistant_name || "", assistant_gender: p.assistant_gender || "male" });
         if (p.theme) setTheme(p.theme as ThemeId);
       }
     } catch { /* ignore */ } finally {
@@ -105,15 +106,33 @@ export default function ProfilePage() {
             onChange={v => setProfile(p => ({ ...p, position: v }))} placeholder="Директор" />
           <div className="md:col-span-2">
             <label className="block text-xs font-medium text-ink-muted mb-1.5 flex items-center gap-1.5">
-              <span className="text-base">✦</span> Имя AI-помощника
+              <span className="text-base">✦</span> AI-помощник
             </label>
-            <input
-              className="w-full border border-snow-dark rounded-xl px-3 py-2.5 text-sm outline-none focus:border-ink transition-colors bg-snow"
-              placeholder="Давинчи"
-              value={profile.assistant_name}
-              onChange={e => setProfile(p => ({ ...p, assistant_name: e.target.value }))}
-            />
-            <p className="text-xs text-ink-faint mt-1">Так будет звать себя ваш голосовой помощник</p>
+            <div className="flex gap-2">
+              <input
+                className="flex-1 border border-snow-dark rounded-xl px-3 py-2.5 text-sm outline-none focus:border-ink transition-colors bg-snow"
+                placeholder="Жарвис"
+                value={profile.assistant_name}
+                onChange={e => setProfile(p => ({ ...p, assistant_name: e.target.value }))}
+              />
+              <div className="flex rounded-xl border border-snow-dark overflow-hidden shrink-0">
+                {[{ id: "male", label: "♂ Муж", icon: "👨" }, { id: "female", label: "♀ Жен", icon: "👩" }].map(g => (
+                  <button key={g.id} type="button"
+                    onClick={() => setProfile(p => ({ ...p, assistant_gender: g.id }))}
+                    className={`px-4 py-2.5 text-sm font-medium transition-colors ${
+                      profile.assistant_gender === g.id
+                        ? "bg-ink text-white"
+                        : "bg-snow text-ink-muted hover:bg-snow-dark"
+                    }`}>
+                    {g.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <p className="text-xs text-ink-faint mt-1">
+              Имя и пол определяют голос помощника
+              {profile.assistant_gender === "male" ? " — глубокий мужской (Onyx)" : " — женский (Nova)"}
+            </p>
           </div>
         </div>
 

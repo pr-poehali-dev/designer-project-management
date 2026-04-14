@@ -8,21 +8,37 @@ import { AUTH_API, SESSION_KEY, Session } from "./client/ClientPortalTypes";
 export default function ClientPortal() {
   const { token } = useParams<{ token: string }>();
   const [session, setSession] = useState<Session | null>(() => {
-    try { const s = sessionStorage.getItem(SESSION_KEY); return s ? JSON.parse(s) : null; }
+    try {
+      const s = sessionStorage.getItem(SESSION_KEY);
+      if (!s) return null;
+      const parsed: Session = JSON.parse(s);
+      return parsed;
+    }
     catch { return null; }
   });
   const [validating, setValidating] = useState(true);
 
   useEffect(() => {
-    if (!session) { setValidating(false); return; }
+    const savedSession = (() => {
+      try { const s = sessionStorage.getItem(SESSION_KEY); return s ? JSON.parse(s) as Session : null; }
+      catch { return null; }
+    })();
+
+    if (!savedSession || savedSession.project_token !== token) {
+      sessionStorage.removeItem(SESSION_KEY);
+      setSession(null);
+      setValidating(false);
+      return;
+    }
+
     (async () => {
       try {
-        const r = await fetch(`${AUTH_API}?action=me`, { headers: { "X-Client-Token": session.token } });
+        const r = await fetch(`${AUTH_API}?action=me`, { headers: { "X-Client-Token": savedSession.token } });
         const data = await r.json();
         if (!data.ok) { sessionStorage.removeItem(SESSION_KEY); setSession(null); }
       } catch { /* ignore */ } finally { setValidating(false); }
     })();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [token]);
 
   if (validating) return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">

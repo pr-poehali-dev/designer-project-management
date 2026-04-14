@@ -27,7 +27,7 @@ export default function ClientLoginScreen({ projectToken, onAuth }: Props) {
       });
       const data = await r.json();
       if (!data.ok) { setError(data.error || "Ошибка"); return; }
-      const s: Session = { token: data.token, name: data.name, client_id: data.client_id };
+      const s: Session = { token: data.token, name: data.name, client_id: data.client_id, project_token: projectToken };
       sessionStorage.setItem(SESSION_KEY, JSON.stringify(s));
       onAuth(s);
     } catch { setError("Ошибка сети"); } finally { setLoading(false); }

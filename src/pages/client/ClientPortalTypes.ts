@@ -3,7 +3,7 @@ export const CRM_API      = "https://functions.poehali.dev/21fcd16a-d247-4b03-85
 export const SETTINGS_API = "https://functions.poehali.dev/1e1d2ff7-8833-4400-a59e-564cb2ac887b";
 export const SESSION_KEY  = "client_session";
 
-export interface Session { token: string; name: string; client_id: number; }
+export interface Session { token: string; name: string; client_id: number; project_token?: string; }
 
 export interface ProjectData { id: number; name: string; status: string; deadline: string; discount_percent: number; vat_mode: string; vat_rate: number; client_name: string; contact_person: string; }
 export interface WorkItem { id: number; name: string; quantity: number; unit: string; price: number; }

@@ -1,0 +1,22 @@
+{
+  "tests": [
+    {
+      "name": "Register new designer",
+      "method": "POST",
+      "path": "/?action=register",
+      "body": {"email": "test_designer_temp@example.com", "password": "test123456", "name": "Тест Дизайнер"},
+      "expectedStatus": 200,
+      "expectedBody": {"ok": true},
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Login designer",
+      "method": "POST",
+      "path": "/?action=login",
+      "body": {"email": "test_designer_temp@example.com", "password": "test123456"},
+      "expectedStatus": 200,
+      "expectedBody": {"ok": true},
+      "bodyMatcher": "partial"
+    }
+  ]
+}

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import Icon from "@/components/ui/icon";
+import { getAuthHeaders } from "@/lib/designerAuth";
 
 const DOC_API = "https://functions.poehali.dev/b70e27b9-0603-4f64-a12d-ff1869cca1b0";
 
@@ -53,7 +54,7 @@ export default function DocTemplatesEditor() {
   const loadTemplates = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await fetch(`${DOC_API}?action=templates`);
+      const r = await fetch(`${DOC_API}?action=templates`, { headers: { ...getAuthHeaders() } });
       const d = await r.json();
       if (d.ok) setTemplates(d.templates || []);
     } catch { /* ignore */ } finally { setLoading(false); }
@@ -65,7 +66,7 @@ export default function DocTemplatesEditor() {
     setSelectedId(id);
     setSaveStatus("idle");
     try {
-      const r = await fetch(`${DOC_API}?action=template&id=${id}`);
+      const r = await fetch(`${DOC_API}?action=template&id=${id}`, { headers: { ...getAuthHeaders() } });
       const d = await r.json();
       if (d.ok && d.template) {
         setName(d.template.name);
@@ -87,7 +88,7 @@ export default function DocTemplatesEditor() {
     try {
       const r = await fetch(`${DOC_API}?action=save_template`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({ id: selectedId, name, content }),
       });
       const d = await r.json();
@@ -106,7 +107,7 @@ export default function DocTemplatesEditor() {
     try {
       await fetch(`${DOC_API}?action=delete_template`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({ id: selectedId }),
       });
       setSelectedId(null);

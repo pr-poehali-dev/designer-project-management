@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import Icon from "@/components/ui/icon";
+import { getAuthHeaders } from "@/lib/designerAuth";
 
 const API = "https://functions.poehali.dev/21fcd16a-d247-4b03-8505-0be9497f8386";
 
@@ -36,7 +37,7 @@ export default function ClientMessagePanel({ activeClient }: Props) {
   const load = useCallback(async (id: number) => {
     setLoading(true);
     try {
-      const r = await fetch(`${API}?action=client_messages&client_id=${id}`);
+      const r = await fetch(`${API}?action=client_messages&client_id=${id}`, { headers: { ...getAuthHeaders() } });
       const data = await r.json();
       if (data.ok) setMessages(data.messages || []);
     } catch { /* ignore */ } finally { setLoading(false); }
@@ -71,7 +72,7 @@ export default function ClientMessagePanel({ activeClient }: Props) {
     try {
       const r = await fetch(`${API}?action=client_messages`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({ client_id: activeClient.id, text, from_me: true }),
       });
       const data = await r.json();

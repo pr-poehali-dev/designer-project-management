@@ -1,14 +1,44 @@
 """CRUD для клиентов, проектов, видов работ, заметок и документов."""
 import json
 import os
+import base64
+import hmac
+import hashlib
 import psycopg2
 import psycopg2.extras
 
 CORS_HEADERS = {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Headers": "Content-Type, X-Designer-Token",
 }
+
+
+def verify_token(token: str):
+    """Возвращает designer_id или None."""
+    try:
+        secret = os.environ.get("DESIGNER_JWT_SECRET", "designer_secret_2024")
+        raw = base64.urlsafe_b64decode(token.encode()).decode()
+        parts = raw.rsplit(":", 1)
+        if len(parts) != 2:
+            return None
+        payload, sig = parts
+        expected = hmac.new(secret.encode(), payload.encode(), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(sig, expected):
+            return None
+        p_parts = payload.split(":")
+        if len(p_parts) != 2:
+            return None
+        return int(p_parts[0])
+    except Exception:
+        return None
+
+
+def get_designer_id(event: dict):
+    token = event.get("headers", {}).get("X-Designer-Token", "")
+    if not token:
+        return None
+    return verify_token(token)
 
 
 def get_db():
@@ -19,7 +49,7 @@ def json_resp(data, status=200):
     return {"statusCode": status, "headers": CORS_HEADERS, "body": json.dumps(data, default=str)}
 
 
-def handle_clients(method, params, body):
+def handle_clients(method, params, body, designer_id):
     conn = get_db()
     try:
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -29,12 +59,12 @@ def handle_clients(method, params, body):
             cur.execute("""
                 SELECT c.*, 
                     (SELECT count(*) FROM projects p WHERE p.client_id = c.id) as project_count
-                FROM clients c ORDER BY c.created_at DESC
-            """)
+                FROM clients c WHERE c.designer_id = %s ORDER BY c.created_at DESC
+            """, (designer_id,))
             return json_resp({"ok": True, "clients": [dict(r) for r in cur.fetchall()]})
 
         if method == "GET" and client_id:
-            cur.execute("SELECT * FROM clients WHERE id = %s", (client_id,))
+            cur.execute("SELECT * FROM clients WHERE id = %s AND designer_id = %s", (client_id, designer_id))
             client = cur.fetchone()
             if not client:
                 return json_resp({"ok": False, "error": "Not found"}, 404)
@@ -57,6 +87,8 @@ def handle_clients(method, params, body):
                     vals.append(body[f])
             if not cols:
                 return json_resp({"ok": False, "error": "No data"}, 400)
+            cols.append("designer_id")
+            vals.append(designer_id)
             placeholders = ", ".join(["%s"] * len(cols))
             col_names = ", ".join(cols)
             cur.execute(f"INSERT INTO clients ({col_names}) VALUES ({placeholders}) RETURNING id", vals)
@@ -82,7 +114,7 @@ def handle_clients(method, params, body):
         conn.close()
 
 
-def handle_projects(method, params, body):
+def handle_projects(method, params, body, designer_id):
     conn = get_db()
     try:
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -93,8 +125,9 @@ def handle_projects(method, params, body):
                 SELECT p.*, c.name as client_name
                 FROM projects p
                 LEFT JOIN clients c ON c.id = p.client_id
+                WHERE p.designer_id = %s
                 ORDER BY p.created_at DESC
-            """)
+            """, (designer_id,))
             projects = []
             for r in cur.fetchall():
                 p = dict(r)
@@ -129,9 +162,9 @@ def handle_projects(method, params, body):
             import secrets as _secrets
             token = _secrets.token_hex(24)
             cur.execute(
-                "INSERT INTO projects (name, client_id, status, deadline, discount_percent, client_token) VALUES (%s, %s, %s, %s, %s, %s) RETURNING id",
+                "INSERT INTO projects (name, client_id, status, deadline, discount_percent, client_token, designer_id) VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id",
                 (body.get("name", ""), body.get("client_id"), body.get("status", "draft"),
-                 body.get("deadline") or None, body.get("discount_percent", 0), token)
+                 body.get("deadline") or None, body.get("discount_percent", 0), token, designer_id)
             )
             conn.commit()
             return json_resp({"ok": True, "id": cur.fetchone()["id"]})
@@ -233,14 +266,14 @@ def handle_reorder(method, params, body):
         conn.close()
 
 
-def handle_templates(method, params, body):
+def handle_templates(method, params, body, designer_id):
     conn = get_db()
     try:
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         template_id = params.get("id")
 
         if method == "GET" and not template_id:
-            cur.execute("SELECT t.*, (SELECT count(*) FROM estimate_template_items i WHERE i.template_id = t.id) as item_count FROM estimate_templates t ORDER BY t.created_at DESC")
+            cur.execute("SELECT t.*, (SELECT count(*) FROM estimate_template_items i WHERE i.template_id = t.id) as item_count FROM estimate_templates t WHERE t.designer_id = %s ORDER BY t.created_at DESC", (designer_id,))
             return json_resp({"ok": True, "templates": [dict(r) for r in cur.fetchall()]})
 
         if method == "GET" and template_id:
@@ -255,7 +288,7 @@ def handle_templates(method, params, body):
         if method == "POST" and not template_id:
             name = body.get("name", "Новый шаблон")
             items = body.get("items", [])
-            cur.execute("INSERT INTO estimate_templates (name) VALUES (%s) RETURNING id", (name,))
+            cur.execute("INSERT INTO estimate_templates (name, designer_id) VALUES (%s, %s) RETURNING id", (name, designer_id))
             tpl_id = cur.fetchone()["id"]
             for i, item in enumerate(items):
                 cur.execute(
@@ -679,7 +712,7 @@ def handle_stages(method, params, body):
         conn.close()
 
 
-def handle_partners(method, params, body):
+def handle_partners(method, params, body, designer_id):
     """CRUD для партнёров: магазины, поставщики, отделочники."""
     conn = get_db()
     try:
@@ -689,9 +722,9 @@ def handle_partners(method, params, body):
         if method == "GET" and not partner_id:
             category = params.get("category", "")
             if category:
-                cur.execute("SELECT * FROM partners WHERE category = %s ORDER BY name ASC", (category,))
+                cur.execute("SELECT * FROM partners WHERE designer_id = %s AND category = %s ORDER BY name ASC", (designer_id, category))
             else:
-                cur.execute("SELECT * FROM partners ORDER BY name ASC")
+                cur.execute("SELECT * FROM partners WHERE designer_id = %s ORDER BY name ASC", (designer_id,))
             return json_resp({"ok": True, "partners": [dict(r) for r in cur.fetchall()]})
 
         if method == "GET" and partner_id:
@@ -705,6 +738,8 @@ def handle_partners(method, params, body):
             fields = ["name", "category", "services", "phone", "email", "address", "website", "contact_person", "discount_percent", "notes"]
             cols = [f for f in fields if f in body]
             vals = [body[f] for f in cols]
+            cols.append("designer_id")
+            vals.append(designer_id)
             placeholders = ", ".join(["%s"] * len(cols))
             cur.execute(
                 f"INSERT INTO partners ({', '.join(cols)}) VALUES ({placeholders}) RETURNING *",
@@ -737,7 +772,7 @@ def handle_partners(method, params, body):
         conn.close()
 
 
-def handle_members(method, params, body):
+def handle_members(method, params, body, designer_id):
     """Список участников для выбора в команду: профиль дизайнера, команда проекта, клиент проекта, + доступные роли."""
     conn = get_db()
     try:
@@ -745,7 +780,7 @@ def handle_members(method, params, body):
         project_id = params.get("project_id") or body.get("project_id")
 
         # Профиль владельца (дизайнер)
-        cur.execute("SELECT full_name, position, specializations FROM user_profile ORDER BY id LIMIT 1")
+        cur.execute("SELECT full_name, position, specializations FROM user_profile WHERE designer_id = %s LIMIT 1", (designer_id,))
         profile = cur.fetchone()
         members = []
         available_roles = []
@@ -803,11 +838,11 @@ def handle_members(method, params, body):
         conn.close()
 
 
-def handle_clients_list_short(method, params, body):
+def handle_clients_list_short(method, params, body, designer_id):
     conn = get_db()
     try:
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute("SELECT id, name, contact_person FROM clients ORDER BY name")
+        cur.execute("SELECT id, name, contact_person FROM clients WHERE designer_id = %s ORDER BY name", (designer_id,))
         return json_resp({"ok": True, "clients": [dict(r) for r in cur.fetchall()]})
     finally:
         conn.close()
@@ -1133,15 +1168,31 @@ def handler(event: dict, context) -> dict:
     params = event.get("queryStringParameters") or {}
     action = params.get("action", "clients")
     body = {}
-    if method in ("POST", "PUT"):
-        body = json.loads(event.get("body") or "{}")
+    if method in ("POST", "PUT", "DELETE"):
+        try:
+            body = json.loads(event.get("body") or "{}")
+        except Exception:
+            pass
+
+    # Публичные действия (клиентский портал — без токена дизайнера)
+    PUBLIC_ACTIONS = {"client_view", "client_token"}
+    if action in PUBLIC_ACTIONS:
+        if action == "client_view":
+            return handle_client_view(method, params, body)
+        if action == "client_token":
+            return handle_client_token(method, params, body)
+
+    # Все остальные требуют токен дизайнера
+    designer_id = get_designer_id(event)
+    if not designer_id:
+        return json_resp({"ok": False, "error": "Unauthorized"}, 401)
 
     if action == "clients":
-        return handle_clients(method, params, body)
+        return handle_clients(method, params, body, designer_id)
     elif action == "clients_short":
-        return handle_clients_list_short(method, params, body)
+        return handle_clients_list_short(method, params, body, designer_id)
     elif action == "projects":
-        return handle_projects(method, params, body)
+        return handle_projects(method, params, body, designer_id)
     elif action == "work_items":
         return handle_work_items(method, params, body)
     elif action == "notes":
@@ -1151,15 +1202,11 @@ def handler(event: dict, context) -> dict:
     elif action == "reorder":
         return handle_reorder(method, params, body)
     elif action == "templates":
-        return handle_templates(method, params, body)
+        return handle_templates(method, params, body, designer_id)
     elif action == "estimates":
         return handle_estimates(method, params, body)
     elif action == "project_chat":
         return handle_project_chat(method, params, body)
-    elif action == "client_view":
-        return handle_client_view(method, params, body)
-    elif action == "client_token":
-        return handle_client_token(method, params, body)
     elif action == "client_messages":
         return handle_client_messages(method, params, body)
     elif action == "client_messages_unread":
@@ -1173,9 +1220,9 @@ def handler(event: dict, context) -> dict:
     elif action == "payments":
         return handle_payments(method, params, body)
     elif action == "members":
-        return handle_members(method, params, body)
+        return handle_members(method, params, body, designer_id)
     elif action == "partners":
-        return handle_partners(method, params, body)
+        return handle_partners(method, params, body, designer_id)
     elif action == "stages":
         return handle_stages(method, params, body)
     elif action == "acts":

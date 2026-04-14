@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Icon from "@/components/ui/icon";
 import ProjectCard from "./ProjectCard";
+import { getAuthHeaders } from "@/lib/designerAuth";
 
 const API = "https://functions.poehali.dev/21fcd16a-d247-4b03-8505-0be9497f8386";
 
@@ -34,7 +35,7 @@ export default function ProjectsPage({ openProjectId, onClearProject }: {
 
   const load = useCallback(async () => {
     try {
-      const r = await fetch(`${API}?action=projects`);
+      const r = await fetch(`${API}?action=projects`, { headers: { ...getAuthHeaders() } });
       const data = await r.json();
       if (data.ok) setProjects(data.projects || []);
     } catch { /* ignore */ } finally { setLoading(false); }

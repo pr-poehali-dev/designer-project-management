@@ -3,6 +3,8 @@ import json
 import os
 import base64
 import uuid
+import hmac
+import hashlib
 import psycopg2
 import psycopg2.extras
 import boto3
@@ -11,7 +13,7 @@ import boto3
 CORS_HEADERS = {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, POST, PUT, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Headers": "Content-Type, X-Designer-Token",
 }
 
 PROFILE_FIELDS = ["full_name", "phone", "email", "position", "avatar_url", "assistant_name", "theme", "assistant_gender"]
@@ -38,18 +40,46 @@ def get_s3():
     )
 
 
-def get_profile() -> dict:
+def verify_token(token: str):
+    """Возвращает designer_id или None."""
+    try:
+        secret = os.environ.get("DESIGNER_JWT_SECRET", "designer_secret_2024")
+        raw = base64.urlsafe_b64decode(token.encode()).decode()
+        parts = raw.rsplit(":", 1)
+        if len(parts) != 2:
+            return None
+        payload, sig = parts
+        expected = hmac.new(secret.encode(), payload.encode(), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(sig, expected):
+            return None
+        p_parts = payload.split(":")
+        if len(p_parts) != 2:
+            return None
+        return int(p_parts[0])
+    except Exception:
+        return None
+
+
+def get_designer_id(event: dict):
+    """Извлекает и верифицирует designer_id из заголовка X-Designer-Token."""
+    token = event.get("headers", {}).get("X-Designer-Token", "")
+    if not token:
+        return None
+    return verify_token(token)
+
+
+def get_profile(designer_id: int) -> dict:
     conn = get_db()
     try:
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute("SELECT * FROM user_profile ORDER BY id LIMIT 1")
+        cur.execute("SELECT * FROM user_profile WHERE designer_id = %s LIMIT 1", (designer_id,))
         row = cur.fetchone()
         return dict(row) if row else {}
     finally:
         conn.close()
 
 
-def save_profile(data: dict):
+def save_profile(data: dict, designer_id: int):
     conn = get_db()
     try:
         cur = conn.cursor()
@@ -61,25 +91,25 @@ def save_profile(data: dict):
         if not sets:
             return
         sets.append("updated_at = NOW()")
-        vals.append(1)
-        cur.execute(f"UPDATE user_profile SET {', '.join(sets)} WHERE id = %s", vals)
+        vals.append(designer_id)
+        cur.execute(f"UPDATE user_profile SET {', '.join(sets)} WHERE designer_id = %s", vals)
         conn.commit()
     finally:
         conn.close()
 
 
-def get_company() -> dict:
+def get_company(designer_id: int) -> dict:
     conn = get_db()
     try:
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute("SELECT * FROM company_info ORDER BY id LIMIT 1")
+        cur.execute("SELECT * FROM company_info WHERE designer_id = %s LIMIT 1", (designer_id,))
         row = cur.fetchone()
         return dict(row) if row else {}
     finally:
         conn.close()
 
 
-def save_company(data: dict):
+def save_company(data: dict, designer_id: int):
     conn = get_db()
     try:
         cur = conn.cursor()
@@ -91,42 +121,38 @@ def save_company(data: dict):
         if not sets:
             return
         sets.append("updated_at = NOW()")
-        vals.append(1)
-        cur.execute(f"UPDATE company_info SET {', '.join(sets)} WHERE id = %s", vals)
+        vals.append(designer_id)
+        cur.execute(f"UPDATE company_info SET {', '.join(sets)} WHERE designer_id = %s", vals)
         conn.commit()
     finally:
         conn.close()
 
 
-def get_guild_profile() -> dict:
+def get_guild_profile(designer_id: int) -> dict:
     conn = get_db()
     try:
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute("SELECT * FROM user_profile ORDER BY id LIMIT 1")
+        cur.execute("SELECT * FROM user_profile WHERE designer_id = %s LIMIT 1", (designer_id,))
         row = cur.fetchone()
         return dict(row) if row else {}
     finally:
         conn.close()
 
 
-def save_guild_profile(data: dict):
+def save_guild_profile(data: dict, designer_id: int):
     conn = get_db()
     try:
         cur = conn.cursor()
         sets, vals = [], []
         for f in GUILD_FIELDS:
             if f in data:
-                if f == "specializations":
-                    sets.append(f"{f} = %s")
-                    vals.append(data[f])
-                else:
-                    sets.append(f"{f} = %s")
-                    vals.append(data[f])
+                sets.append(f"{f} = %s")
+                vals.append(data[f])
         if not sets:
             return
         sets.append("updated_at = NOW()")
-        vals.append(1)
-        cur.execute(f"UPDATE user_profile SET {', '.join(sets)} WHERE id = %s", vals)
+        vals.append(designer_id)
+        cur.execute(f"UPDATE user_profile SET {', '.join(sets)} WHERE designer_id = %s", vals)
         conn.commit()
     finally:
         conn.close()
@@ -205,8 +231,22 @@ def handler(event: dict, context) -> dict:
     params = event.get("queryStringParameters") or {}
     action = params.get("action", "profile")
 
+    # Публичные действия — без токена
+    if action == "guild" and method == "GET":
+        spec = params.get("specialization", "")
+        members = get_guild_members(spec if spec else None)
+        return {
+            "statusCode": 200, "headers": CORS_HEADERS,
+            "body": json.dumps({"ok": True, "members": members}, default=str)
+        }
+
+    # Все остальные действия требуют токен
+    designer_id = get_designer_id(event)
+    if not designer_id:
+        return {"statusCode": 401, "headers": CORS_HEADERS, "body": json.dumps({"ok": False, "error": "Unauthorized"})}
+
     if action == "profile" and method == "GET":
-        data = get_profile()
+        data = get_profile(designer_id)
         data.pop("id", None)
         data.pop("updated_at", None)
         return {
@@ -216,14 +256,14 @@ def handler(event: dict, context) -> dict:
 
     if action == "profile" and method in ("POST", "PUT"):
         body = json.loads(event.get("body") or "{}")
-        save_profile(body)
+        save_profile(body, designer_id)
         return {
             "statusCode": 200, "headers": CORS_HEADERS,
             "body": json.dumps({"ok": True})
         }
 
     if action == "company" and method == "GET":
-        data = get_company()
+        data = get_company(designer_id)
         data.pop("id", None)
         data.pop("updated_at", None)
         return {
@@ -233,7 +273,7 @@ def handler(event: dict, context) -> dict:
 
     if action == "company" and method in ("POST", "PUT"):
         body = json.loads(event.get("body") or "{}")
-        save_company(body)
+        save_company(body, designer_id)
         return {
             "statusCode": 200, "headers": CORS_HEADERS,
             "body": json.dumps({"ok": True})
@@ -242,14 +282,14 @@ def handler(event: dict, context) -> dict:
     if action == "upload_logo" and method == "POST":
         body = json.loads(event.get("body") or "{}")
         url = upload_logo(body)
-        save_company({"logo_url": url})
+        save_company({"logo_url": url}, designer_id)
         return {
             "statusCode": 200, "headers": CORS_HEADERS,
             "body": json.dumps({"ok": True, "url": url})
         }
 
     if action == "guild_profile" and method == "GET":
-        data = get_guild_profile()
+        data = get_guild_profile(designer_id)
         return {
             "statusCode": 200, "headers": CORS_HEADERS,
             "body": json.dumps({"ok": True, "guild": {
@@ -263,7 +303,7 @@ def handler(event: dict, context) -> dict:
 
     if action == "guild_profile" and method in ("POST", "PUT"):
         body = json.loads(event.get("body") or "{}")
-        save_guild_profile(body)
+        save_guild_profile(body, designer_id)
         return {
             "statusCode": 200, "headers": CORS_HEADERS,
             "body": json.dumps({"ok": True})
@@ -277,8 +317,8 @@ def handler(event: dict, context) -> dict:
             try:
                 cur = conn.cursor()
                 cur.execute(
-                    "UPDATE user_profile SET guild_photos = array_append(COALESCE(guild_photos, '{}'), %s) WHERE id = 1",
-                    (url,)
+                    "UPDATE user_profile SET guild_photos = array_append(COALESCE(guild_photos, '{}'), %s) WHERE designer_id = %s",
+                    (url, designer_id)
                 )
                 conn.commit()
             finally:
@@ -295,8 +335,8 @@ def handler(event: dict, context) -> dict:
         try:
             cur = conn.cursor()
             cur.execute(
-                "UPDATE user_profile SET guild_photos = array_remove(COALESCE(guild_photos, '{}'), %s) WHERE id = 1",
-                (url_to_remove,)
+                "UPDATE user_profile SET guild_photos = array_remove(COALESCE(guild_photos, '{}'), %s) WHERE designer_id = %s",
+                (url_to_remove, designer_id)
             )
             conn.commit()
         finally:
@@ -306,19 +346,50 @@ def handler(event: dict, context) -> dict:
             "body": json.dumps({"ok": True})
         }
 
-    if action == "guild" and method == "GET":
-        spec = params.get("specialization", "")
-        members = get_guild_members(spec if spec else None)
-        return {
-            "statusCode": 200, "headers": CORS_HEADERS,
-            "body": json.dumps({"ok": True, "members": members}, default=str)
-        }
+    if action == "brief_template" and method == "GET":
+        conn = get_db()
+        try:
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            cur.execute("SELECT * FROM brief_template WHERE designer_id = %s ORDER BY id LIMIT 1", (designer_id,))
+            row = cur.fetchone()
+            return {
+                "statusCode": 200, "headers": CORS_HEADERS,
+                "body": json.dumps({"ok": True, "template": dict(row) if row else None}, default=str)
+            }
+        finally:
+            conn.close()
+
+    if action == "brief_template" and method in ("POST", "PUT"):
+        body = json.loads(event.get("body") or "{}")
+        fields = body.get("fields", [])
+        intro = body.get("intro", "")
+        conn = get_db()
+        try:
+            cur = conn.cursor()
+            cur.execute("SELECT id FROM brief_template WHERE designer_id = %s LIMIT 1", (designer_id,))
+            if cur.fetchone():
+                cur.execute(
+                    "UPDATE brief_template SET fields = %s, intro = %s, updated_at = NOW() WHERE designer_id = %s",
+                    (json.dumps(fields, ensure_ascii=False), intro, designer_id)
+                )
+            else:
+                cur.execute(
+                    "INSERT INTO brief_template (fields, intro, designer_id) VALUES (%s, %s, %s)",
+                    (json.dumps(fields, ensure_ascii=False), intro, designer_id)
+                )
+            conn.commit()
+            return {
+                "statusCode": 200, "headers": CORS_HEADERS,
+                "body": json.dumps({"ok": True})
+            }
+        finally:
+            conn.close()
 
     if action == "internal_chats" and method == "GET":
         conn = get_db()
         try:
             cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-            cur.execute("SELECT * FROM internal_chats ORDER BY updated_at DESC")
+            cur.execute("SELECT * FROM internal_chats WHERE designer_id = %s ORDER BY updated_at DESC", (designer_id,))
             chats = [dict(r) for r in cur.fetchall()]
             return {
                 "statusCode": 200, "headers": CORS_HEADERS,
@@ -335,14 +406,14 @@ def handler(event: dict, context) -> dict:
         conn = get_db()
         try:
             cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-            cur.execute("SELECT * FROM internal_chats WHERE participant_name = %s LIMIT 1", (name,))
+            cur.execute("SELECT * FROM internal_chats WHERE participant_name = %s AND designer_id = %s LIMIT 1", (name, designer_id))
             row = cur.fetchone()
             if row:
                 chat = dict(row)
             else:
                 cur.execute(
-                    "INSERT INTO internal_chats (participant_name, participant_initials, participant_avatar) VALUES (%s, %s, %s) RETURNING *",
-                    (name, initials, avatar)
+                    "INSERT INTO internal_chats (participant_name, participant_initials, participant_avatar, designer_id) VALUES (%s, %s, %s, %s) RETURNING *",
+                    (name, initials, avatar, designer_id)
                 )
                 chat = dict(cur.fetchone())
                 conn.commit()
@@ -389,45 +460,6 @@ def handler(event: dict, context) -> dict:
             return {
                 "statusCode": 200, "headers": CORS_HEADERS,
                 "body": json.dumps({"ok": True, "message": msg}, default=str)
-            }
-        finally:
-            conn.close()
-
-    if action == "brief_template" and method == "GET":
-        conn = get_db()
-        try:
-            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-            cur.execute("SELECT * FROM brief_template ORDER BY id LIMIT 1")
-            row = cur.fetchone()
-            return {
-                "statusCode": 200, "headers": CORS_HEADERS,
-                "body": json.dumps({"ok": True, "template": dict(row) if row else None}, default=str)
-            }
-        finally:
-            conn.close()
-
-    if action == "brief_template" and method in ("POST", "PUT"):
-        body = json.loads(event.get("body") or "{}")
-        fields = body.get("fields", [])
-        intro = body.get("intro", "")
-        conn = get_db()
-        try:
-            cur = conn.cursor()
-            cur.execute("SELECT id FROM brief_template LIMIT 1")
-            if cur.fetchone():
-                cur.execute(
-                    "UPDATE brief_template SET fields = %s, intro = %s, updated_at = NOW() WHERE id = (SELECT id FROM brief_template LIMIT 1)",
-                    (json.dumps(fields, ensure_ascii=False), intro)
-                )
-            else:
-                cur.execute(
-                    "INSERT INTO brief_template (fields, intro) VALUES (%s, %s)",
-                    (json.dumps(fields, ensure_ascii=False), intro)
-                )
-            conn.commit()
-            return {
-                "statusCode": 200, "headers": CORS_HEADERS,
-                "body": json.dumps({"ok": True})
             }
         finally:
             conn.close()

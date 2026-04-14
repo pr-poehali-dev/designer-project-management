@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import Icon from "@/components/ui/icon";
 import GuildProfileBlock from "@/components/crm/GuildProfileBlock";
+import { getAuthHeaders } from "@/lib/designerAuth";
 
 const API = "https://functions.poehali.dev/1e1d2ff7-8833-4400-a59e-564cb2ac887b";
 
@@ -48,7 +49,7 @@ export default function CompanyPage() {
   const loadCompany = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await fetch(`${API}?action=company`);
+      const r = await fetch(`${API}?action=company`, { headers: { ...getAuthHeaders() } });
       const data = await r.json();
       if (data.ok) {
         const c = { ...EMPTY, ...data.company };
@@ -67,7 +68,7 @@ export default function CompanyPage() {
     try {
       const r = await fetch(`${API}?action=company`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify(company),
       });
       const data = await r.json();
@@ -95,7 +96,7 @@ export default function CompanyPage() {
         const base64 = (ev.target?.result as string).split(",")[1];
         const r = await fetch(`${API}?action=upload_logo`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...getAuthHeaders() },
           body: JSON.stringify({ file: base64, mime: file.type }),
         });
         const data = await r.json();
@@ -117,12 +118,12 @@ export default function CompanyPage() {
     setCompany(prev => ({ ...prev, logo_url: "" }));
     await fetch(`${API}?action=upload_logo`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify({ file: "", mime: "image/png", remove: true }),
     }).catch(() => {/* ignore */});
     await fetch(`${API}?action=company`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify({ logo_url: "" }),
     }).catch(() => {/* ignore */});
   };

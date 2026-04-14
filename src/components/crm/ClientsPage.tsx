@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Icon from "@/components/ui/icon";
 import ClientCard from "./ClientCard";
+import { getAuthHeaders } from "@/lib/designerAuth";
 
 const API = "https://functions.poehali.dev/21fcd16a-d247-4b03-8505-0be9497f8386";
 
@@ -36,7 +37,7 @@ export default function ClientsPage({ onOpenProject }: { onOpenProject?: (id: nu
 
   const load = useCallback(async () => {
     try {
-      const r = await fetch(`${API}?action=clients`);
+      const r = await fetch(`${API}?action=clients`, { headers: { ...getAuthHeaders() } });
       const data = await r.json();
       if (data.ok) setClients(data.clients || []);
     } catch { /* ignore */ } finally { setLoading(false); }
@@ -49,7 +50,7 @@ export default function ClientsPage({ onOpenProject }: { onOpenProject?: (id: nu
     setAdding(true);
     try {
       const r = await fetch(`${API}?action=clients`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({ name: newName.trim(), status: "new" }),
       });
       const data = await r.json();

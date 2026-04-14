@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import Icon from "@/components/ui/icon";
 import { InternalChat } from "./chats.types";
+import { getAuthHeaders } from "@/lib/designerAuth";
 
 const API = "https://functions.poehali.dev/1e1d2ff7-8833-4400-a59e-564cb2ac887b";
 
@@ -28,7 +29,7 @@ export default function InternalMessagePanel({ activeInternal }: Props) {
     try {
       const r = await fetch(`${API}?action=internal_chat_get_or_create`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({
           participant_name: activeInternal.name,
           participant_initials: activeInternal.initials,
@@ -44,7 +45,7 @@ export default function InternalMessagePanel({ activeInternal }: Props) {
   const loadMessages = useCallback(async (id: number) => {
     setLoading(true);
     try {
-      const r = await fetch(`${API}?action=internal_messages&chat_id=${id}`);
+      const r = await fetch(`${API}?action=internal_messages&chat_id=${id}`, { headers: { ...getAuthHeaders() } });
       const data = await r.json();
       if (data.ok) setMessages(data.messages || []);
     } catch { /* ignore */ } finally { setLoading(false); }
@@ -86,7 +87,7 @@ export default function InternalMessagePanel({ activeInternal }: Props) {
     try {
       const r = await fetch(`${API}?action=internal_message_send`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({ chat_id: chatId, text, from_me: true }),
       });
       const data = await r.json();

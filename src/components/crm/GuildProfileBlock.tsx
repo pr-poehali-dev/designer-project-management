@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import Icon from "@/components/ui/icon";
+import { getAuthHeaders } from "@/lib/designerAuth";
 
 const API = "https://functions.poehali.dev/1e1d2ff7-8833-4400-a59e-564cb2ac887b";
 
@@ -38,7 +39,7 @@ export default function GuildProfileBlock() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await fetch(`${API}?action=guild_profile`);
+      const r = await fetch(`${API}?action=guild_profile`, { headers: { ...getAuthHeaders() } });
       const data = await r.json();
       if (data.ok) {
         const g = { ...EMPTY, ...data.guild };
@@ -56,7 +57,7 @@ export default function GuildProfileBlock() {
     try {
       const r = await fetch(`${API}?action=guild_profile`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify(profile),
       });
       const data = await r.json();
@@ -95,7 +96,7 @@ export default function GuildProfileBlock() {
         const base64 = (ev.target?.result as string).split(",")[1];
         const r = await fetch(`${API}?action=upload_guild_photo`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...getAuthHeaders() },
           body: JSON.stringify({ file: base64, mime: file.type }),
         });
         const data = await r.json();
@@ -115,7 +116,7 @@ export default function GuildProfileBlock() {
     setSaved(prev => prev ? { ...prev, guild_photos: prev.guild_photos.filter(p => p !== url) } : prev);
     await fetch(`${API}?action=delete_guild_photo`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify({ url }),
     }).catch(() => {/* ignore */});
   };
@@ -144,7 +145,7 @@ export default function GuildProfileBlock() {
             setSaved(prev => prev ? { ...prev, taking_orders: newVal } : prev);
             await fetch(`${API}?action=guild_profile`, {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: { "Content-Type": "application/json", ...getAuthHeaders() },
               body: JSON.stringify({ ...profile, taking_orders: newVal }),
             }).catch(() => {/* ignore */});
           }}

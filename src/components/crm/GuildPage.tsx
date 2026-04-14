@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import Icon from "@/components/ui/icon";
+import { getAuthHeaders } from "@/lib/designerAuth";
 
 const API = "https://functions.poehali.dev/1e1d2ff7-8833-4400-a59e-564cb2ac887b";
 const CRM_API = "https://functions.poehali.dev/21fcd16a-d247-4b03-8505-0be9497f8386";
@@ -60,7 +61,7 @@ export default function GuildPage({ onChat }: Props) {
       const url = spec
         ? `${API}?action=guild&specialization=${encodeURIComponent(spec)}`
         : `${API}?action=guild`;
-      const r = await fetch(url);
+      const r = await fetch(url, { headers: { ...getAuthHeaders() } });
       const data = await r.json();
       if (data.ok) setMembers(data.members || []);
     } catch { /* ignore */ } finally { setLoading(false); }
@@ -75,7 +76,7 @@ export default function GuildPage({ onChat }: Props) {
     setHireStatus("idle");
     setLoadingProjects(true);
     try {
-      const r = await fetch(`${CRM_API}?action=projects`);
+      const r = await fetch(`${CRM_API}?action=projects`, { headers: { ...getAuthHeaders() } });
       const data = await r.json();
       if (data.ok) setProjects(data.projects || []);
     } catch { /* ignore */ } finally { setLoadingProjects(false); }
@@ -87,7 +88,7 @@ export default function GuildPage({ onChat }: Props) {
     try {
       const r = await fetch(`${CRM_API}?action=team`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({
           project_id: selectedProjectId,
           member_name: hireModal.full_name,

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import Icon from "@/components/ui/icon";
+import { getAuthHeaders } from "@/lib/designerAuth";
 
 const API = "https://functions.poehali.dev/21fcd16a-d247-4b03-8505-0be9497f8386";
 
@@ -43,7 +44,7 @@ export default function ProjectChat({ projectId, projectName }: {
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const r = await fetch(`${API}?action=project_chat&project_id=${projectId}`);
+      const r = await fetch(`${API}?action=project_chat&project_id=${projectId}`, { headers: { ...getAuthHeaders() } });
       const data = await r.json();
       if (data.ok) {
         setChat(data.chat);
@@ -86,7 +87,7 @@ export default function ProjectChat({ projectId, projectName }: {
 
     try {
       const r = await fetch(`${API}?action=project_chat&sub=message`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({
           chat_id: chat.id, text,
           author_name: activeMember.name,
@@ -107,7 +108,7 @@ export default function ProjectChat({ projectId, projectName }: {
     try {
       const color = MEMBER_COLORS[members.length % MEMBER_COLORS.length];
       const r = await fetch(`${API}?action=project_chat&sub=member`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({ chat_id: chat.id, name: newMember.name, role: newMember.role, color }),
       });
       const data = await r.json();

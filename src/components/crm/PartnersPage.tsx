@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import Icon from "@/components/ui/icon";
+import { getAuthHeaders } from "@/lib/designerAuth";
 
 const API = "https://functions.poehali.dev/21fcd16a-d247-4b03-8505-0be9497f8386";
 
@@ -53,7 +54,7 @@ function PartnerModal({ partner, onClose, onSaved }: {
       : `${API}?action=partners`;
     await fetch(url, {
       method: partner ? "PUT" : "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify(form),
     });
     setSaving(false);
@@ -231,7 +232,7 @@ export default function PartnersPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const r = await fetch(`${API}?action=partners`);
+    const r = await fetch(`${API}?action=partners`, { headers: { ...getAuthHeaders() } });
     const data = await r.json();
     if (data.ok) setPartners(data.partners || []);
     setLoading(false);
@@ -241,7 +242,7 @@ export default function PartnersPage() {
 
   const deletePartner = async (id: number) => {
     if (!confirm("Удалить партнёра?")) return;
-    await fetch(`${API}?action=partners&id=${id}`, { method: "DELETE" });
+    await fetch(`${API}?action=partners&id=${id}`, { method: "DELETE", headers: { ...getAuthHeaders() } });
     setPartners(prev => prev.filter(p => p.id !== id));
   };
 

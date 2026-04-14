@@ -4,6 +4,7 @@ import {
   AvitoChat, AvitoMessage, AutopilotLogEntry,
   INTERNAL_CHATS, ClientChatItem,
 } from "./chats.types";
+import { getAuthHeaders } from "@/lib/designerAuth";
 import ChatsSidebar from "./ChatsSidebar";
 import AvitoMessagePanel from "./AvitoMessagePanel";
 import InternalMessagePanel from "./InternalMessagePanel";
@@ -49,7 +50,7 @@ export default function ChatsPage({ openChatWith, onChatOpened }: Props) {
 
   const loadInternalChats = useCallback(async () => {
     try {
-      const r = await fetch(`${SETTINGS_API}?action=internal_chats`);
+      const r = await fetch(`${SETTINGS_API}?action=internal_chats`, { headers: { ...getAuthHeaders() } });
       const data = await r.json();
       if (data.ok && data.chats.length > 0) {
         const dbChats = data.chats.map((c: { id: number; participant_name: string; participant_initials: string; participant_avatar: string }) => ({
@@ -74,7 +75,7 @@ export default function ChatsPage({ openChatWith, onChatOpened }: Props) {
   const loadClientChats = useCallback(async () => {
     setLoadingClientChats(true);
     try {
-      const r = await fetch(`${CRM_API}?action=client_messages`);
+      const r = await fetch(`${CRM_API}?action=client_messages`, { headers: { ...getAuthHeaders() } });
       const data = await r.json();
       if (data.ok) {
         setClientChats(data.clients || []);
@@ -122,7 +123,7 @@ export default function ChatsPage({ openChatWith, onChatOpened }: Props) {
     if (!silent) setLoadingChats(true);
     setErrorChats("");
     try {
-      const r = await fetch(`${AVITO_API}?action=chats`);
+      const r = await fetch(`${AVITO_API}?action=chats`, { headers: { ...getAuthHeaders() } });
       const data = await r.json();
       if (data.ok) {
         setChats(data.chats || []);
@@ -157,7 +158,7 @@ export default function ChatsPage({ openChatWith, onChatOpened }: Props) {
     try {
       const res = await fetch(`${AVITO_API}?action=autopilot`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({}),
       });
       const data = await res.json();
@@ -188,7 +189,7 @@ export default function ChatsPage({ openChatWith, onChatOpened }: Props) {
   const loadMessages = useCallback(async (chatId: string, silent = false) => {
     if (!silent) setLoadingMsgs(true);
     try {
-      const r = await fetch(`${AVITO_API}?action=messages&chat_id=${chatId}`);
+      const r = await fetch(`${AVITO_API}?action=messages&chat_id=${chatId}`, { headers: { ...getAuthHeaders() } });
       const data = await r.json();
       if (data.ok) {
         setMessages(data.messages || []);
@@ -226,7 +227,7 @@ export default function ChatsPage({ openChatWith, onChatOpened }: Props) {
     try {
       const res = await fetch(`${AVITO_API}?action=send`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({ chat_id: activeChat.id, message: text }),
       });
       const data = await res.json();

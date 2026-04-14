@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import Icon from "@/components/ui/icon";
+import { getAuthHeaders } from "@/lib/designerAuth";
 
 const API = "https://functions.poehali.dev/21fcd16a-d247-4b03-8505-0be9497f8386";
 
@@ -57,7 +58,7 @@ export default function ClientCard({ clientId, onBack, onOpenProject }: {
 
   const load = useCallback(async () => {
     try {
-      const r = await fetch(`${API}?action=clients&id=${clientId}`);
+      const r = await fetch(`${API}?action=clients&id=${clientId}`, { headers: { ...getAuthHeaders() } });
       const data = await r.json();
       if (data.ok) {
         setClient(data.client);
@@ -77,7 +78,7 @@ export default function ClientCard({ clientId, onBack, onOpenProject }: {
     setStatus("idle");
     try {
       const r = await fetch(`${API}?action=clients&id=${clientId}`, {
-        method: "PUT", headers: { "Content-Type": "application/json" },
+        method: "PUT", headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify(client),
       });
       const data = await r.json();
@@ -94,7 +95,7 @@ export default function ClientCard({ clientId, onBack, onOpenProject }: {
     setAddingNote(true);
     try {
       const r = await fetch(`${API}?action=notes`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({ client_id: clientId, text: newNote.trim() }),
       });
       const data = await r.json();
@@ -108,7 +109,7 @@ export default function ClientCard({ clientId, onBack, onOpenProject }: {
   const createProject = async () => {
     try {
       const r = await fetch(`${API}?action=projects`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({ name: `Проект для ${client?.name || "клиента"}`, client_id: clientId, status: "draft" }),
       });
       const data = await r.json();

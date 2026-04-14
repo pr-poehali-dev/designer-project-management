@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import Icon from "@/components/ui/icon";
+import { getAuthHeaders } from "@/lib/designerAuth";
 
 const AI_API = "https://functions.poehali.dev/3a0beff5-f58c-449f-a5dd-ae109409103b";
 
@@ -52,7 +53,7 @@ export default function AIAssistant({ currentPage, currentProjectName, onNavigat
   const silenceDurationRef = useRef(0);
 
   useEffect(() => {
-    fetch(`${AI_API}?action=info`)
+    fetch(`${AI_API}?action=info`, { headers: { ...getAuthHeaders() } })
       .then(r => r.json())
       .then(d => { if (d.ok) setAssistantName(d.assistant_name || "Жарвис"); })
       .catch(() => {});
@@ -97,7 +98,7 @@ export default function AIAssistant({ currentPage, currentProjectName, onNavigat
     try {
       const r = await fetch(`${AI_API}?action=chat`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({
           messages: newMessages.map(m => ({ role: m.role, content: m.content })),
           context: { page: currentPage, project_name: currentProjectName },
@@ -120,7 +121,7 @@ export default function AIAssistant({ currentPage, currentProjectName, onNavigat
           try {
             const ttsR = await fetch(`${AI_API}?action=tts`, {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: { "Content-Type": "application/json", ...getAuthHeaders() },
               body: JSON.stringify({ text: data.reply }),
             });
             const ttsData = await ttsR.json();
@@ -199,7 +200,7 @@ export default function AIAssistant({ currentPage, currentProjectName, onNavigat
           try {
             const r = await fetch(`${AI_API}?action=transcribe`, {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: { "Content-Type": "application/json", ...getAuthHeaders() },
               body: JSON.stringify({ audio: b64, mime: mimeType }),
             });
             const data = await r.json();

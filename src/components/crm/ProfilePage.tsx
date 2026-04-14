@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Icon from "@/components/ui/icon";
 import { useTheme, THEMES, ThemeId } from "@/context/ThemeContext";
+import { getAuthHeaders } from "@/lib/designerAuth";
 
 const API = "https://functions.poehali.dev/1e1d2ff7-8833-4400-a59e-564cb2ac887b";
 
@@ -33,7 +34,7 @@ export default function ProfilePage() {
   const loadProfile = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await fetch(`${API}?action=profile`);
+      const r = await fetch(`${API}?action=profile`, { headers: { ...getAuthHeaders() } });
       const data = await r.json();
       if (data.ok) {
         const p = data.profile;
@@ -54,7 +55,7 @@ export default function ProfilePage() {
     try {
       const r = await fetch(`${API}?action=profile`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({ ...profile, theme }),
       });
       const data = await r.json();

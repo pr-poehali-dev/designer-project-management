@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Icon from "@/components/ui/icon";
 import DocTemplatesEditor from "@/components/crm/DocTemplatesEditor";
+import { getAuthHeaders } from "@/lib/designerAuth";
 
 const API = "https://functions.poehali.dev/1e1d2ff7-8833-4400-a59e-564cb2ac887b";
 
@@ -47,7 +48,7 @@ export default function ContractsPage() {
   const loadTemplate = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await fetch(`${API}?action=brief_template`);
+      const r = await fetch(`${API}?action=brief_template`, { headers: { ...getAuthHeaders() } });
       const data = await r.json();
       if (data.ok && data.template) {
         if (data.template.fields?.length) setFields(data.template.fields);
@@ -63,7 +64,7 @@ export default function ContractsPage() {
     try {
       const r = await fetch(`${API}?action=brief_template`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({ fields, intro }),
       });
       const data = await r.json();

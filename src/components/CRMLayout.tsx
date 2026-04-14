@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import Icon from "@/components/ui/icon";
+import { getAuthHeaders } from "@/lib/designerAuth";
 import DashboardPage from "@/components/crm/DashboardPage";
 import ProjectsPage from "@/components/crm/ProjectsPage";
 import ClientsPage from "@/components/crm/ClientsPage";
@@ -55,7 +56,7 @@ export default function CRMLayout({ onLogout }: Props) {
 
   const loadProfile = useCallback(async () => {
     try {
-      const r = await fetch(`${SETTINGS_API}?action=profile`);
+      const r = await fetch(`${SETTINGS_API}?action=profile`, { headers: { ...getAuthHeaders() } });
       const data = await r.json();
       if (data.ok) {
         setUserName(data.profile.full_name || "");
@@ -71,7 +72,7 @@ export default function CRMLayout({ onLogout }: Props) {
   useEffect(() => {
     const fetchUnread = async () => {
       try {
-        const r = await fetch(`${CRM_API}?action=client_messages_unread`);
+        const r = await fetch(`${CRM_API}?action=client_messages_unread`, { headers: { ...getAuthHeaders() } });
         const data = await r.json();
         if (data.ok) setChatUnread(Number(data.unread) || 0);
       } catch { /* ignore */ }
